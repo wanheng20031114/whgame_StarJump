@@ -1,0 +1,721 @@
+/**
+ * ============================================================
+ * 游戏主类
+ * ============================================================
+ * 管理整个游戏的运行，包括：
+ * - 游戏循环
+ * - 实体管理（炮台、敌人、子弹）
+ * - 地图渲染
+ * - 战斗逻辑
+ * - 波次系统
+ */
+
+import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { GameMap } from './GameMap';
+import { AssetManager } from './AssetManager';
+import { PathFinding } from '../systems/PathFinding';
+import { CombatSystem, DamageType } from '../systems/CombatSystem';
+import { WaveSystem } from '../systems/WaveSystem';
+import { Tower } from '../entities/Tower';
+import { PrototypeTower } from '../entities/PrototypeTower';
+import { Enemy } from '../entities/Enemy';
+import { Zombie } from '../entities/Zombie';
+import { Projectile } from '../entities/Projectile';
+import { GameState, EnemyType, Position, TileType } from '../types';
+
+/**
+ * 游戏主类
+ */
+export class Game {
+    /** PixiJS 应用实例 */
+    private app: Application;
+
+    /** 游戏地图 */
+    private gameMap: GameMap;
+
+    /** 寻路系统 */
+    private pathFinding: PathFinding;
+
+    /** 战斗系统 */
+    private combatSystem: CombatSystem;
+
+    /** 波次系统 */
+    private waveSystem: WaveSystem;
+
+    /** 地图层容器 */
+    private mapLayer: Container;
+
+    /** 实体层容器（炮台、敌人） */
+    private entityLayer: Container;
+
+    /** 子弹层容器 */
+    private projectileLayer: Container;
+
+    /** UI层容器 */
+    private uiLayer: Container;
+
+    /** 炮台列表 */
+    private towers: Tower[] = [];
+
+    /** 敌人列表 */
+    private enemies: Enemy[] = [];
+
+    /** 子弹列表 */
+    private projectiles: Projectile[] = [];
+
+    /** 游戏状态 */
+    private gameState: GameState = GameState.IDLE;
+
+    /** 核心生命值 */
+    private coreHealth: number = 10;
+
+    /** 核心最大生命值 */
+    private maxCoreHealth: number = 10;
+
+    /** 金币 */
+    private gold: number = 100;
+
+    /** 实体ID计数器 */
+    private entityIdCounter: number = 0;
+
+    /** 游戏是否初始化完成 */
+    private initialized: boolean = false;
+
+    /** 上一帧时间 */
+    private lastTime: number = 0;
+
+    /** 核心生命值文本 */
+    private coreHealthText: Text | null = null;
+
+    /** 金币文本 */
+    private goldText: Text | null = null;
+
+    /** 波次文本 */
+    private waveText: Text | null = null;
+
+    /** 游戏结束回调 */
+    private onGameEnd: ((victory: boolean) => void) | null = null;
+
+    /**
+     * 构造函数
+     * @param app PixiJS 应用实例
+     */
+    constructor(app: Application) {
+        this.app = app;
+
+        // 创建图层容器
+        this.mapLayer = new Container();
+        this.entityLayer = new Container();
+        this.projectileLayer = new Container();
+        this.uiLayer = new Container();
+
+        // 添加到舞台
+        this.app.stage.addChild(this.mapLayer);
+        this.app.stage.addChild(this.entityLayer);
+        this.app.stage.addChild(this.projectileLayer);
+        this.app.stage.addChild(this.uiLayer);
+
+        // 初始化地图
+        this.gameMap = new GameMap(this.mapLayer);
+
+        // 初始化系统
+        this.pathFinding = new PathFinding(this.gameMap);
+        this.combatSystem = new CombatSystem();
+        this.waveSystem = new WaveSystem();
+
+        // 设置波次回调
+        this.setupWaveCallbacks();
+
+        console.log('[游戏] 游戏核心初始化完成');
+    }
+
+    /**
+     * 初始化游戏
+     */
+    public async init(): Promise<void> {
+        if (this.initialized) {
+            console.log('[游戏] 已初始化，跳过');
+            return;
+        }
+
+        console.log('[游戏] 开始初始化...');
+
+        // 加载资源
+        const assetManager = AssetManager.getInstance();
+        await assetManager.loadAssets();
+
+        // 创建UI
+        this.createUI();
+
+        // 设置交互事件
+        this.setupInteraction();
+
+        // 居中地图
+        this.centerMap();
+
+        this.initialized = true;
+        console.log('[游戏] 初始化完成');
+    }
+
+    /**
+     * 居中地图
+     */
+    private centerMap(): void {
+        const mapWidth = this.gameMap.getPixelWidth();
+        const mapHeight = this.gameMap.getPixelHeight();
+        const screenWidth = this.app.screen.width;
+        const screenHeight = this.app.screen.height;
+
+        const offsetX = (screenWidth - mapWidth) / 2;
+        const offsetY = (screenHeight - mapHeight) / 2 + 30; // 留出顶部UI空间
+
+        this.mapLayer.x = offsetX;
+        this.mapLayer.y = offsetY;
+        this.entityLayer.x = offsetX;
+        this.entityLayer.y = offsetY;
+        this.projectileLayer.x = offsetX;
+        this.projectileLayer.y = offsetY;
+    }
+
+    /**
+     * 创建UI
+     */
+    private createUI(): void {
+        const textStyle = new TextStyle({
+            fontFamily: 'Microsoft YaHei, Arial',
+            fontSize: 20,
+            fill: '#ffffff',
+            fontWeight: 'bold',
+        });
+
+        // 核心生命值
+        this.coreHealthText = new Text({
+            text: `核心生命: ${this.coreHealth}/${this.maxCoreHealth}`,
+            style: textStyle,
+        });
+        this.coreHealthText.x = 20;
+        this.coreHealthText.y = 10;
+        this.uiLayer.addChild(this.coreHealthText);
+
+        // 金币
+        this.goldText = new Text({
+            text: `金币: ${this.gold}`,
+            style: textStyle,
+        });
+        this.goldText.x = 250;
+        this.goldText.y = 10;
+        this.uiLayer.addChild(this.goldText);
+
+        // 波次
+        this.waveText = new Text({
+            text: `波次: 0/${this.waveSystem.getTotalWaves()}`,
+            style: textStyle,
+        });
+        this.waveText.x = 400;
+        this.waveText.y = 10;
+        this.uiLayer.addChild(this.waveText);
+
+        // 开始按钮
+        const startButton = this.createButton('开始游戏', 550, 5, () => {
+            this.startGame();
+        });
+        this.uiLayer.addChild(startButton);
+
+        // 炮台放置提示
+        const tipsStyle = new TextStyle({
+            fontFamily: 'Microsoft YaHei, Arial',
+            fontSize: 14,
+            fill: '#888888',
+        });
+        const tips = new Text({
+            text: '点击蓝色高台放置炮台 (消耗50金币)',
+            style: tipsStyle,
+        });
+        tips.x = 20;
+        tips.y = 40;
+        this.uiLayer.addChild(tips);
+    }
+
+    /**
+     * 创建按钮
+     */
+    private createButton(text: string, x: number, y: number, onClick: () => void): Container {
+        const button = new Container();
+        button.x = x;
+        button.y = y;
+
+        // 按钮背景
+        const bg = new Graphics();
+        bg.roundRect(0, 0, 100, 30, 5);
+        bg.fill({ color: 0xe94560 });
+        button.addChild(bg);
+
+        // 按钮文字
+        const label = new Text({
+            text,
+            style: new TextStyle({
+                fontFamily: 'Microsoft YaHei, Arial',
+                fontSize: 14,
+                fill: '#ffffff',
+                fontWeight: 'bold',
+            }),
+        });
+        label.x = 50 - label.width / 2;
+        label.y = 15 - label.height / 2;
+        button.addChild(label);
+
+        // 交互
+        button.eventMode = 'static';
+        button.cursor = 'pointer';
+        button.on('pointerdown', onClick);
+
+        return button;
+    }
+
+    /**
+     * 设置交互事件
+     */
+    private setupInteraction(): void {
+        // 监听地图格子点击
+        const mapConfig = this.gameMap.getConfig();
+
+        for (let y = 0; y < mapConfig.height; y++) {
+            for (let x = 0; x < mapConfig.width; x++) {
+                const tile = this.gameMap.getTile(x, y);
+                if (tile && tile.type === TileType.PLATFORM) {
+                    const graphics = this.gameMap.getTileGraphics(x, y);
+                    if (graphics) {
+                        graphics.on('pointerdown', () => {
+                            this.handleTileClick(x, y);
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理格子点击
+     */
+    private handleTileClick(x: number, y: number): void {
+        if (this.gameState !== GameState.PLAYING && this.gameState !== GameState.IDLE) {
+            return;
+        }
+
+        // 检查是否可以放置炮台
+        if (!this.gameMap.canPlaceTower(x, y)) {
+            console.log('[游戏] 无法在此放置炮台');
+            return;
+        }
+
+        // 检查金币
+        const towerCost = 50;
+        if (this.gold < towerCost) {
+            console.log('[游戏] 金币不足');
+            return;
+        }
+
+        // 扣除金币
+        this.gold -= towerCost;
+        this.updateUI();
+
+        // 放置炮台
+        this.placeTower(x, y);
+    }
+
+    /**
+     * 放置炮台
+     */
+    private placeTower(x: number, y: number): void {
+        const id = `tower_${this.entityIdCounter++}`;
+        const tower = new PrototypeTower(id, { x, y });
+
+        this.towers.push(tower);
+        this.entityLayer.addChild(tower.getContainer());
+        this.gameMap.setTowerOnTile(x, y, true);
+
+        console.log(`[游戏] 放置炮台于 (${x}, ${y})`);
+    }
+
+    /**
+     * 设置波次回调
+     */
+    private setupWaveCallbacks(): void {
+        // 敌人生成回调
+        this.waveSystem.setOnSpawnEnemy((type: EnemyType, _gateIndex: number) => {
+            this.spawnEnemy(type);
+        });
+
+        // 波次开始回调
+        this.waveSystem.setOnWaveStart((waveNumber: number) => {
+            console.log(`[游戏] 第 ${waveNumber} 波开始！`);
+            this.updateUI();
+        });
+
+        // 波次结束回调
+        this.waveSystem.setOnWaveEnd((waveNumber: number) => {
+            console.log(`[游戏] 第 ${waveNumber} 波结束！`);
+
+            // 检查是否还有下一波
+            if (!this.waveSystem.isAllWavesComplete()) {
+                // 自动开始下一波
+                setTimeout(() => {
+                    this.waveSystem.startNextWave();
+                }, 2000);
+            }
+        });
+
+        // 所有波次完成回调
+        this.waveSystem.setOnAllWavesComplete(() => {
+            console.log('[游戏] 所有波次完成，胜利！');
+            this.endGame(true);
+        });
+    }
+
+    /**
+     * 生成敌人
+     */
+    private spawnEnemy(type: EnemyType): void {
+        const redGates = this.gameMap.getRedGates();
+        if (redGates.length === 0) {
+            console.error('[游戏] 没有红门，无法生成敌人');
+            return;
+        }
+
+        // 从第一个红门生成
+        const gate = redGates[0];
+        const startPos = this.gameMap.tileToPixel(gate.x, gate.y);
+
+        // 创建敌人
+        const id = `enemy_${this.entityIdCounter++}`;
+        let enemy: Enemy;
+
+        switch (type) {
+            case EnemyType.ZOMBIE:
+                enemy = new Zombie(id, startPos);
+                break;
+            default:
+                enemy = new Zombie(id, startPos);
+        }
+
+        // 计算路径
+        const path = this.pathFinding.findPathToNearestBlueGate(gate);
+        if (path.length === 0) {
+            console.error('[游戏] 无法找到到蓝门的路径');
+            enemy.destroy();
+            return;
+        }
+
+        enemy.setPath(path);
+        this.enemies.push(enemy);
+        this.entityLayer.addChild(enemy.getContainer());
+
+        console.log(`[游戏] 生成敌人 ${type}，路径长度: ${path.length}`);
+    }
+
+    /**
+     * 开始游戏
+     */
+    public startGame(): void {
+        if (this.gameState === GameState.PLAYING) {
+            console.log('[游戏] 游戏已在进行中');
+            return;
+        }
+
+        console.log('[游戏] 开始游戏');
+        this.gameState = GameState.PLAYING;
+        this.lastTime = performance.now();
+
+        // 开始第一波
+        this.waveSystem.startNextWave();
+
+        // 启动游戏循环
+        this.app.ticker.add(this.gameLoop, this);
+    }
+
+    /**
+     * 游戏循环
+     */
+    private gameLoop = (): void => {
+        if (this.gameState !== GameState.PLAYING) {
+            return;
+        }
+
+        // 计算时间增量
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - this.lastTime) / 1000; // 转换为秒
+        this.lastTime = currentTime;
+
+        // 限制最大时间增量，防止暂停后恢复时出现异常
+        const clampedDelta = Math.min(deltaTime, 0.1);
+
+        // 更新波次系统
+        this.waveSystem.update();
+
+        // 更新炮台
+        this.updateTowers(clampedDelta);
+
+        // 更新敌人
+        this.updateEnemies(clampedDelta);
+
+        // 更新子弹
+        this.updateProjectiles(clampedDelta);
+
+        // 清理死亡实体
+        this.cleanupDeadEntities();
+
+        // 检查波次完成
+        this.checkWaveComplete();
+
+        // 检查游戏结束
+        if (this.coreHealth <= 0) {
+            this.endGame(false);
+        }
+    };
+
+    /**
+     * 更新炮台
+     */
+    private updateTowers(deltaTime: number): void {
+        // 收集存活敌人信息
+        const enemyInfos = this.enemies
+            .filter((e) => e.isAlive())
+            .map((e) => ({
+                id: e.id,
+                position: e.getPosition(),
+                isAlive: e.isAlive(),
+            }));
+
+        for (const tower of this.towers) {
+            if (!tower.isAlive()) continue;
+
+            const result = tower.update(deltaTime, enemyInfos);
+
+            if (result.shouldFire && result.targetId) {
+                // 发射子弹
+                this.fireProjectile(tower, result.targetId);
+            }
+        }
+    }
+
+    /**
+     * 发射子弹
+     */
+    private fireProjectile(tower: Tower, targetId: string): void {
+        const id = `projectile_${this.entityIdCounter++}`;
+        const startPos = tower.getPosition();
+        const damage = tower.getAttack();
+        const speed = 300; // 像素/秒
+
+        const projectile = new Projectile(id, startPos, damage, speed, targetId, tower.id);
+        this.projectiles.push(projectile);
+        this.projectileLayer.addChild(projectile.getContainer());
+    }
+
+    /**
+     * 更新敌人
+     */
+    private updateEnemies(deltaTime: number): void {
+        for (const enemy of this.enemies) {
+            if (!enemy.isAlive()) continue;
+
+            const reachedEnd = enemy.update(deltaTime);
+
+            if (reachedEnd) {
+                // 敌人到达蓝门，扣除核心生命值
+                this.coreHealth--;
+                this.updateUI();
+                enemy.kill();
+                console.log(`[游戏] 敌人进入蓝门，核心生命值: ${this.coreHealth}`);
+            }
+        }
+    }
+
+    /**
+     * 更新子弹
+     */
+    private updateProjectiles(deltaTime: number): void {
+        for (const projectile of this.projectiles) {
+            if (!projectile.isAlive()) continue;
+
+            // 找到目标敌人
+            const target = this.enemies.find((e) => e.id === projectile.getTargetId());
+
+            if (!target || !target.isAlive()) {
+                // 目标已不存在，销毁子弹
+                projectile.hit();
+                continue;
+            }
+
+            // 更新目标位置
+            projectile.updateTargetPosition(target.getPosition());
+
+            // 更新子弹位置
+            const hit = projectile.update(deltaTime);
+
+            if (hit) {
+                // 命中目标，造成伤害
+                const damage = this.combatSystem.calculateDamage(
+                    projectile.getDamage(),
+                    DamageType.PHYSICAL,
+                    target.getDefense(),
+                    target.getMagicResist()
+                );
+
+                target.takeDamage(damage);
+                projectile.hit();
+
+                console.log(`[游戏] 子弹命中敌人，造成 ${damage} 伤害`);
+
+                // 击杀奖励
+                if (!target.isAlive()) {
+                    this.gold += 10;
+                    this.updateUI();
+                }
+            }
+        }
+    }
+
+    /**
+     * 清理死亡实体
+     */
+    private cleanupDeadEntities(): void {
+        // 清理死亡的敌人
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            if (!this.enemies[i].isAlive()) {
+                this.enemies[i].destroy();
+                this.enemies.splice(i, 1);
+            }
+        }
+
+        // 清理死亡的炮台
+        for (let i = this.towers.length - 1; i >= 0; i--) {
+            if (!this.towers[i].isAlive()) {
+                const tilePos = this.towers[i].getTilePosition();
+                this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
+                this.towers[i].destroy();
+                this.towers.splice(i, 1);
+            }
+        }
+
+        // 清理命中的子弹
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            if (!this.projectiles[i].isAlive()) {
+                this.projectiles[i].destroy();
+                this.projectiles.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 检查波次完成
+     */
+    private checkWaveComplete(): void {
+        if (!this.waveSystem.isWaveInProgress()) {
+            return;
+        }
+
+        // 如果所有敌人都已被消灭，标记波次完成
+        const aliveEnemies = this.enemies.filter((e) => e.isAlive());
+        if (aliveEnemies.length === 0 && this.waveSystem.getCurrentWaveEnemyCount() > 0) {
+            // 需要确保当前波次的敌人已经全部生成完毕
+            // 这个逻辑在 WaveSystem 中已处理
+        }
+    }
+
+    /**
+     * 更新UI显示
+     */
+    private updateUI(): void {
+        if (this.coreHealthText) {
+            this.coreHealthText.text = `核心生命: ${this.coreHealth}/${this.maxCoreHealth}`;
+        }
+        if (this.goldText) {
+            this.goldText.text = `金币: ${this.gold}`;
+        }
+        if (this.waveText) {
+            this.waveText.text = `波次: ${this.waveSystem.getCurrentWaveNumber()}/${this.waveSystem.getTotalWaves()}`;
+        }
+    }
+
+    /**
+     * 结束游戏
+     */
+    private endGame(victory: boolean): void {
+        this.gameState = victory ? GameState.VICTORY : GameState.DEFEAT;
+        this.app.ticker.remove(this.gameLoop, this);
+
+        console.log(`[游戏] 游戏结束，${victory ? '胜利' : '失败'}！`);
+
+        // 显示结果
+        const resultText = new Text({
+            text: victory ? '胜利！' : '失败...',
+            style: new TextStyle({
+                fontFamily: 'Microsoft YaHei, Arial',
+                fontSize: 48,
+                fill: victory ? '#27ae60' : '#e74c3c',
+                fontWeight: 'bold',
+                stroke: { color: '#000000', width: 4 },
+            }),
+        });
+        resultText.x = this.app.screen.width / 2 - resultText.width / 2;
+        resultText.y = this.app.screen.height / 2 - resultText.height / 2;
+        this.uiLayer.addChild(resultText);
+
+        // 回调
+        this.onGameEnd?.(victory);
+    }
+
+    /**
+     * 设置游戏结束回调
+     */
+    public setOnGameEnd(callback: (victory: boolean) => void): void {
+        this.onGameEnd = callback;
+    }
+
+    /**
+     * 重置游戏
+     */
+    public reset(): void {
+        // 停止游戏循环
+        this.app.ticker.remove(this.gameLoop, this);
+
+        // 清理所有实体
+        for (const tower of this.towers) {
+            tower.destroy();
+        }
+        for (const enemy of this.enemies) {
+            enemy.destroy();
+        }
+        for (const projectile of this.projectiles) {
+            projectile.destroy();
+        }
+
+        this.towers = [];
+        this.enemies = [];
+        this.projectiles = [];
+
+        // 重置状态
+        this.gameState = GameState.IDLE;
+        this.coreHealth = this.maxCoreHealth;
+        this.gold = 100;
+        this.waveSystem.reset();
+
+        // 更新UI
+        this.updateUI();
+
+        console.log('[游戏] 游戏已重置');
+    }
+
+    /**
+     * 销毁游戏
+     */
+    public destroy(): void {
+        this.reset();
+        this.app.ticker.remove(this.gameLoop, this);
+        this.mapLayer.destroy({ children: true });
+        this.entityLayer.destroy({ children: true });
+        this.projectileLayer.destroy({ children: true });
+        this.uiLayer.destroy({ children: true });
+    }
+}
