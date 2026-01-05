@@ -63,7 +63,25 @@ export enum TileType {
     PLATFORM = 'platform',
     RED_GATE = 'red_gate',
     BLUE_GATE = 'blue_gate',
+    OBSTACLE = 'obstacle', // 障碍物（不可通行，不可放置）
 }
+
+/**
+ * 地图格子字符定义（用于布局配置）
+ */
+export type TileChar = 'G' | 'P' | 'R' | 'B' | 'O' | '.';
+
+/**
+ * 地图字符到类型的映射表
+ */
+export const MAP_CHAR_TO_TYPE: Record<string, TileType | null> = {
+    'G': TileType.GROUND,
+    'P': TileType.PLATFORM,
+    'R': TileType.RED_GATE,
+    'B': TileType.BLUE_GATE,
+    'O': TileType.OBSTACLE,
+    '.': null, // 空白占位
+};
 
 /**
  * 地图格子接口
@@ -137,8 +155,10 @@ export interface TowerStats {
     attack: number;
     /** 攻击速度（每秒攻击次数） */
     attackSpeed: number;
-    /** 攻击范围（格子数） */
+    /** 攻击范围（格数，用于半径计算） */
     range: number;
+    /** 攻击范围模板（二维数组，1表示在范围内，0或中心标记表示不在） */
+    rangePattern?: number[][];
 }
 
 /**
@@ -159,7 +179,8 @@ export interface Tower extends Entity {
  * 炮台类型枚举
  */
 export enum TowerType {
-    PROTOTYPE = 'prototype', // 原型炮台
+    PROTOTYPE = 'prototype',     // 原型炮台
+    FLAMETHROWER = 'flamethrower', // 喷火器
 }
 
 /**

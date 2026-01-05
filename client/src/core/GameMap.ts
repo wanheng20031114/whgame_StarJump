@@ -9,8 +9,9 @@
  * - 蓝门（BLUE_GATE）：我方基地，敌人终点
  */
 
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { TileType, MapConfig, Position, Tile } from '../types';
+import { Container, Graphics } from 'pixi.js';
+import { TileType, MapConfig, Position, Tile, MAP_CHAR_TO_TYPE } from '../types';
+import { DEFAULT_MAP_DATA, MapDataConfig } from '../data/MapData';
 
 /**
  * 地图系统类
@@ -39,8 +40,8 @@ export class GameMap {
     constructor(container: Container) {
         this.container = container;
 
-        // 初始化默认地图配置
-        this.config = this.createDefaultMapConfig();
+        // 初始化默认地图数据
+        this.config = this.parseMapData(DEFAULT_MAP_DATA);
 
         // 初始化格子数据
         this.tiles = this.initializeTiles();
@@ -50,54 +51,47 @@ export class GameMap {
     }
 
     /**
-     * 创建默认地图配置
-     * 10x8 格子的标准地图
+     * 解析地图数据配置
+     * @param data 地图数据
      */
-    private createDefaultMapConfig(): MapConfig {
-        // 地图布局说明：
-        // G = 地面(GROUND), P = 高台(PLATFORM)
-        // R = 红门(RED_GATE), B = 蓝门(BLUE_GATE)
-        const layout: TileType[][] = [
-            // 第0行
-            [TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND],
-            // 第1行：红门在左边，蓝门在右边
-            [TileType.RED_GATE, TileType.GROUND, TileType.GROUND, TileType.PLATFORM, TileType.PLATFORM, TileType.PLATFORM, TileType.PLATFORM, TileType.GROUND, TileType.GROUND, TileType.BLUE_GATE],
-            // 第2行
-            [TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND],
-            // 第3行：两侧高台
-            [TileType.GROUND, TileType.PLATFORM, TileType.PLATFORM, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.PLATFORM, TileType.PLATFORM, TileType.GROUND],
-            // 第4行
-            [TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND],
-            // 第5行：两侧高台
-            [TileType.GROUND, TileType.PLATFORM, TileType.PLATFORM, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.PLATFORM, TileType.PLATFORM, TileType.GROUND],
-            // 第6行
-            [TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND],
-            // 第7行
-            [TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND, TileType.GROUND],
-        ];
-
-        // 找出红门和蓝门位置
+    private parseMapData(data: MapDataConfig): MapConfig {
+        const layout: TileType[][] = [];
         const redGates: Position[] = [];
         const blueGates: Position[] = [];
 
-        for (let y = 0; y < layout.length; y++) {
-            for (let x = 0; x < layout[y].length; x++) {
-                if (layout[y][x] === TileType.RED_GATE) {
+        for (let y = 0; y < data.height; y++) {
+            layout[y] = [];
+            for (let x = 0; x < data.width; x++) {
+                const char = data.layout[y][x];
+                const type = MAP_CHAR_TO_TYPE[char] || TileType.GROUND;
+                layout[y][x] = type;
+
+                if (type === TileType.RED_GATE) {
                     redGates.push({ x, y });
-                } else if (layout[y][x] === TileType.BLUE_GATE) {
+                } else if (type === TileType.BLUE_GATE) {
                     blueGates.push({ x, y });
                 }
             }
         }
 
         return {
-            width: 10,
-            height: 8,
+            width: data.width,
+            height: data.height,
             tileSize: this.tileSize,
             tiles: layout,
             redGates,
             blueGates,
         };
+    }
+
+    /**
+     * 加载新地图数据
+     * @param data 地图数据
+     */
+    public loadFromData(data: MapDataConfig): void {
+        this.config = this.parseMapData(data);
+        this.tiles = this.initializeTiles();
+        this.render();
     }
 
     /**
@@ -179,6 +173,11 @@ export class GameMap {
                 // 蓝门：蓝色
                 color = 0x3498db;
                 borderColor = 0x2980b9;
+                break;
+            case TileType.OBSTACLE:
+                // 障碍物：深黑色
+                color = 0x1a1a1a;
+                borderColor = 0x000000;
                 break;
             default:
                 color = 0x333333;

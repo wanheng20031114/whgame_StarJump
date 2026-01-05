@@ -18,10 +18,15 @@ import { CombatSystem, DamageType } from '../systems/CombatSystem';
 import { WaveSystem } from '../systems/WaveSystem';
 import { Tower } from '../entities/Tower';
 import { PrototypeTower } from '../entities/PrototypeTower';
+import { FlameThrower, FlameSpawnData } from '../entities/FlameThrower';
+import { FlameParticle } from '../entities/FlameParticle';
 import { Enemy } from '../entities/Enemy';
 import { Zombie } from '../entities/Zombie';
 import { Projectile } from '../entities/Projectile';
-import { GameState, EnemyType, Position, TileType } from '../types';
+import { DeploymentBar } from '../ui/DeploymentBar';
+import { RangeOverlay } from '../ui/RangeOverlay';
+import { TowerInfoPanel } from '../ui/TowerInfoPanel';
+import { GameState, EnemyType, TileType, TowerType } from '../types';
 
 /**
  * 游戏主类
@@ -63,6 +68,9 @@ export class Game {
     /** 子弹列表 */
     private projectiles: Projectile[] = [];
 
+    /** 火焰粒子列表（喷火器攻击） */
+    private flameParticles: FlameParticle[] = [];
+
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
 
@@ -93,6 +101,21 @@ export class Game {
     /** 波次文本 */
     private waveText: Text | null = null;
 
+    /** 部署栏 */
+    private deploymentBar: DeploymentBar | null = null;
+
+    /** 攻击范围覆盖层 */
+    private rangeOverlay: RangeOverlay | null = null;
+
+    /** 炮台信息面板 */
+    private towerInfoPanel: TowerInfoPanel | null = null;
+
+    /** 当前拖拽中的炮台类型 */
+    private draggingTowerType: TowerType | null = null;
+
+    /** 当前拖拽中的炮台费用 */
+    private draggingTowerCost: number = 0;
+
     /** 游戏结束回调 */
     private onGameEnd: ((victory: boolean) => void) | null = null;
 
@@ -114,6 +137,10 @@ export class Game {
         this.app.stage.addChild(this.entityLayer);
         this.app.stage.addChild(this.projectileLayer);
         this.app.stage.addChild(this.uiLayer);
+
+        // 创建攻击范围层（位于地图上，实体下）
+        this.rangeOverlay = new RangeOverlay();
+        this.app.stage.addChildAt(this.rangeOverlay.getContainer(), this.app.stage.getChildIndex(this.entityLayer));
 
         // 初始化地图
         this.gameMap = new GameMap(this.mapLayer);
@@ -147,6 +174,11 @@ export class Game {
         // 创建UI
         this.createUI();
 
+        // 初始化信息面板
+        this.towerInfoPanel = new TowerInfoPanel();
+        this.towerInfoPanel.setPosition(20, this.app.screen.height - 230);
+        this.uiLayer.addChild(this.towerInfoPanel.getContainer());
+
         // 设置交互事件
         this.setupInteraction();
 
@@ -166,8 +198,9 @@ export class Game {
         const screenWidth = this.app.screen.width;
         const screenHeight = this.app.screen.height;
 
-        const offsetX = (screenWidth - mapWidth) / 2;
-        const offsetY = (screenHeight - mapHeight) / 2 + 30; // 留出顶部UI空间
+        // 如果地图比屏幕大，优先靠左靠上居中
+        const offsetX = Math.max(0, (screenWidth - mapWidth) / 2);
+        const offsetY = Math.max(0, (screenHeight - mapHeight) / 2 + 30);
 
         this.mapLayer.x = offsetX;
         this.mapLayer.y = offsetY;
@@ -175,6 +208,11 @@ export class Game {
         this.entityLayer.y = offsetY;
         this.projectileLayer.x = offsetX;
         this.projectileLayer.y = offsetY;
+
+        if (this.rangeOverlay) {
+            this.rangeOverlay.getContainer().x = offsetX;
+            this.rangeOverlay.getContainer().y = offsetY;
+        }
     }
 
     /**
@@ -228,12 +266,45 @@ export class Game {
             fill: '#888888',
         });
         const tips = new Text({
-            text: '点击蓝色高台放置炮台 (消耗50金币)',
+            text: '从底部拖拽单位到蓝色高台部署',
             style: tipsStyle,
         });
         tips.x = 20;
         tips.y = 40;
         this.uiLayer.addChild(tips);
+
+        // 创建部署栏
+        this.createDeploymentBar();
+    }
+
+    /**
+     * 创建部署栏
+     */
+    private createDeploymentBar(): void {
+        this.deploymentBar = new DeploymentBar();
+        this.deploymentBar.centerAtBottom(this.app.screen.width, this.app.screen.height);
+        this.deploymentBar.updateGold(this.gold);
+
+        // 设置部署栏回调
+        this.deploymentBar.setCallbacks({
+            onDragStart: (unitType: TowerType, cost: number) => {
+                this.draggingTowerType = unitType;
+                this.draggingTowerCost = cost;
+            },
+            onDragMove: (_x: number, _y: number) => {
+                // 可以在这里添加高亮可部署格子的逻辑
+            },
+            onDragEnd: (x: number, y: number) => {
+                return this.handleDragDeploy(x, y);
+            },
+            onDragCancel: () => {
+                this.draggingTowerType = null;
+                this.draggingTowerCost = 0;
+            },
+        });
+
+        // 添加到UI层
+        this.uiLayer.addChild(this.deploymentBar.getContainer());
     }
 
     /**
@@ -274,67 +345,148 @@ export class Game {
 
     /**
      * 设置交互事件
+     * 监听画布的鼠标事件用于拖拽部署
      */
     private setupInteraction(): void {
-        // 监听地图格子点击
-        const mapConfig = this.gameMap.getConfig();
+        // 设置舞台交互
+        this.app.stage.eventMode = 'static';
+        this.app.stage.hitArea = this.app.screen;
 
-        for (let y = 0; y < mapConfig.height; y++) {
-            for (let x = 0; x < mapConfig.width; x++) {
-                const tile = this.gameMap.getTile(x, y);
-                if (tile && tile.type === TileType.PLATFORM) {
-                    const graphics = this.gameMap.getTileGraphics(x, y);
-                    if (graphics) {
-                        graphics.on('pointerdown', () => {
-                            this.handleTileClick(x, y);
-                        });
-                    }
-                }
+        // 鼠标移动事件（用于拖拽预览）
+        this.app.stage.on('pointermove', (event) => {
+            if (this.deploymentBar?.getIsDragging()) {
+                this.deploymentBar.updateDragPosition(event.global.x, event.global.y);
             }
-        }
+        });
+
+        // 鼠标释放事件（用于结束拖拽）
+        this.app.stage.on('pointerup', (event) => {
+            if (this.deploymentBar?.getIsDragging()) {
+                this.deploymentBar.endDrag(event.global.x, event.global.y);
+            }
+        });
+
+        // 鼠标离开画布事件（取消拖拽）
+        this.app.stage.on('pointerleave', () => {
+            if (this.deploymentBar?.getIsDragging()) {
+                this.deploymentBar.cancelDrag();
+            }
+        });
+
+        // 全局点击事件（用于取消选中）
+        this.app.stage.on('pointertap', () => {
+            // 如果点击的是背景（非图标或炮台），取消选中
+            this.selectTower(null);
+        });
     }
 
     /**
-     * 处理格子点击
+     * 处理拖拽部署
+     * @param x 鼠标X坐标（屏幕坐标）
+     * @param y 鼠标Y坐标（屏幕坐标）
+     * @returns 是否成功部署
      */
-    private handleTileClick(x: number, y: number): void {
+    private handleDragDeploy(x: number, y: number): boolean {
         if (this.gameState !== GameState.PLAYING && this.gameState !== GameState.IDLE) {
-            return;
+            return false;
         }
 
-        // 检查是否可以放置炮台
-        if (!this.gameMap.canPlaceTower(x, y)) {
-            console.log('[游戏] 无法在此放置炮台');
-            return;
+        if (!this.draggingTowerType) {
+            return false;
+        }
+
+        // 转换屏幕坐标到地图坐标
+        const mapX = x - this.mapLayer.x;
+        const mapY = y - this.mapLayer.y;
+
+        // 转换为格子坐标
+        const tileX = Math.floor(mapX / 64);
+        const tileY = Math.floor(mapY / 64);
+
+        // 检查是否可以放置
+        if (!this.gameMap.canPlaceTower(tileX, tileY)) {
+            console.log('[游戏] 无法在此位置部署');
+            this.draggingTowerType = null;
+            this.draggingTowerCost = 0;
+            return false;
         }
 
         // 检查金币
-        const towerCost = 50;
-        if (this.gold < towerCost) {
+        if (this.gold < this.draggingTowerCost) {
             console.log('[游戏] 金币不足');
-            return;
+            this.draggingTowerType = null;
+            this.draggingTowerCost = 0;
+            return false;
         }
 
         // 扣除金币
-        this.gold -= towerCost;
+        this.gold -= this.draggingTowerCost;
         this.updateUI();
 
         // 放置炮台
-        this.placeTower(x, y);
+        this.placeTower(tileX, tileY, this.draggingTowerType);
+
+        // 重置拖拽状态
+        this.draggingTowerType = null;
+        this.draggingTowerCost = 0;
+
+        return true;
     }
 
     /**
      * 放置炮台
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     * @param towerType 炮台类型
      */
-    private placeTower(x: number, y: number): void {
+    private placeTower(x: number, y: number, towerType: TowerType = TowerType.PROTOTYPE): void {
         const id = `tower_${this.entityIdCounter++}`;
-        const tower = new PrototypeTower(id, { x, y });
+        let tower: Tower;
+
+        // 根据类型创建不同的炮台
+        switch (towerType) {
+            case TowerType.FLAMETHROWER:
+                tower = new FlameThrower(id, { x, y });
+                break;
+            case TowerType.PROTOTYPE:
+            default:
+                tower = new PrototypeTower(id, { x, y });
+                break;
+        }
 
         this.towers.push(tower);
-        this.entityLayer.addChild(tower.getContainer());
+
+        // 设置炮台交互
+        const container = tower.getContainer();
+        container.eventMode = 'static';
+        container.cursor = 'pointer';
+        container.on('pointertap', (event) => {
+            event.stopPropagation(); // 阻止事件冒泡到舞台
+            this.selectTower(tower);
+        });
+
+        this.entityLayer.addChild(container);
         this.gameMap.setTowerOnTile(x, y, true);
 
-        console.log(`[游戏] 放置炮台于 (${x}, ${y})`);
+        console.log(`[游戏] 放置${towerType === TowerType.FLAMETHROWER ? '喷火器' : '炮台'}于 (${x}, ${y})`);
+    }
+
+    /**
+     * 选中炮台并显示范围及信息
+     * @param tower 被选中的炮台，null 表示取消选中
+     */
+    private selectTower(tower: Tower | null): void {
+        if (tower) {
+            // 显示攻击范围覆盖
+            this.rangeOverlay?.show(tower.getRangeTiles());
+            // 显示面板信息
+            this.towerInfoPanel?.show(tower);
+            console.log(`[游戏] 选中炮台: ${tower.getName()}`);
+        } else {
+            // 隐藏覆盖和面板
+            this.rangeOverlay?.hide();
+            this.towerInfoPanel?.hide();
+        }
     }
 
     /**
@@ -358,10 +510,10 @@ export class Game {
 
             // 检查是否还有下一波
             if (!this.waveSystem.isAllWavesComplete()) {
-                // 自动开始下一波
+                // 等待3秒后自动开始下一波
                 setTimeout(() => {
                     this.waveSystem.startNextWave();
-                }, 2000);
+                }, 3000); // 敌人击溺后等待3秒
             }
         });
 
@@ -461,6 +613,9 @@ export class Game {
         // 更新子弹
         this.updateProjectiles(clampedDelta);
 
+        // 更新火焰粒子（喷火器攻击）
+        this.updateFlameParticles(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
 
@@ -489,12 +644,46 @@ export class Game {
         for (const tower of this.towers) {
             if (!tower.isAlive()) continue;
 
+            // 对于喷火器，需要设置火焰发射回调
+            if (tower.type === TowerType.FLAMETHROWER && tower instanceof FlameThrower) {
+                // 如果还没有设置回调，则设置
+                if (!tower['_flameCallbackSet']) {
+                    tower.setOnFireFlames((particles: FlameSpawnData[]) => {
+                        this.spawnFlameParticles(particles, tower.id);
+                    });
+                    tower['_flameCallbackSet'] = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             if (result.shouldFire && result.targetId) {
-                // 发射子弹
-                this.fireProjectile(tower, result.targetId);
+                // 对于普通炮台，发射子弹（喷火器的火焰已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER) {
+                    this.fireProjectile(tower, result.targetId);
+                }
             }
+        }
+    }
+
+    /**
+     * 生成火焰粒子（喷火器攻击）
+     * @param particles 粒子生成数据数组
+     * @param ownerId 发射者ID
+     */
+    private spawnFlameParticles(particles: FlameSpawnData[], ownerId: string): void {
+        for (const data of particles) {
+            const id = `flame_${this.entityIdCounter++}`;
+            const particle = new FlameParticle(
+                id,
+                data.startPos,
+                data.direction,
+                data.damage,
+                data.speed,
+                ownerId
+            );
+            this.flameParticles.push(particle);
+            this.projectileLayer.addChild(particle.getContainer());
         }
     }
 
@@ -577,6 +766,46 @@ export class Game {
     }
 
     /**
+     * 更新火焰粒子（喷火器攻击）
+     * 处理火焰粒子的移动和与敌人的碰撞检测
+     */
+    private updateFlameParticles(deltaTime: number): void {
+        for (const particle of this.flameParticles) {
+            if (!particle.isAlive()) continue;
+
+            // 更新粒子位置
+            particle.update(deltaTime);
+
+            // 检查与敌人的碰撞
+            for (const enemy of this.enemies) {
+                if (!enemy.isAlive()) continue;
+
+                // 碰撞检测
+                if (particle.checkCollision(enemy.getPosition(), 20)) {
+                    // 造成伤害
+                    const damage = this.combatSystem.calculateDamage(
+                        particle.getDamage(),
+                        DamageType.PHYSICAL,
+                        enemy.getDefense(),
+                        enemy.getMagicResist()
+                    );
+
+                    enemy.takeDamage(damage);
+                    particle.hit();
+
+                    // 击杀奖励
+                    if (!enemy.isAlive()) {
+                        this.gold += 10;
+                        this.updateUI();
+                    }
+
+                    break; // 每个粒子只能命中一个敌人
+                }
+            }
+        }
+    }
+
+    /**
      * 清理死亡实体
      */
     private cleanupDeadEntities(): void {
@@ -605,21 +834,33 @@ export class Game {
                 this.projectiles.splice(i, 1);
             }
         }
+
+        // 清理消失的火焰粒子
+        for (let i = this.flameParticles.length - 1; i >= 0; i--) {
+            if (!this.flameParticles[i].isAlive()) {
+                this.flameParticles[i].destroy();
+                this.flameParticles.splice(i, 1);
+            }
+        }
     }
 
     /**
      * 检查波次完成
+     * 当所有敌人已生成并全部被击溺时，标记波次完成
      */
     private checkWaveComplete(): void {
         if (!this.waveSystem.isWaveInProgress()) {
             return;
         }
 
-        // 如果所有敌人都已被消灭，标记波次完成
-        const aliveEnemies = this.enemies.filter((e) => e.isAlive());
-        if (aliveEnemies.length === 0 && this.waveSystem.getCurrentWaveEnemyCount() > 0) {
-            // 需要确保当前波次的敌人已经全部生成完毕
-            // 这个逻辑在 WaveSystem 中已处理
+        // 检查：1) 所有敌人已生成 2) 所有敌人已被消灭
+        if (this.waveSystem.isAllEnemiesSpawned()) {
+            const aliveEnemies = this.enemies.filter((e) => e.isAlive());
+            if (aliveEnemies.length === 0) {
+                // 所有敌人已被击溺，标记波次完成
+                console.log('[游戏] 当前波次所有敌人已被击溺');
+                this.waveSystem.markWaveComplete();
+            }
         }
     }
 
@@ -635,6 +876,11 @@ export class Game {
         }
         if (this.waveText) {
             this.waveText.text = `波次: ${this.waveSystem.getCurrentWaveNumber()}/${this.waveSystem.getTotalWaves()}`;
+        }
+
+        // 更新部署栏金币（用于禁用/启用单位按钮）
+        if (this.deploymentBar) {
+            this.deploymentBar.updateGold(this.gold);
         }
     }
 
@@ -690,10 +936,14 @@ export class Game {
         for (const projectile of this.projectiles) {
             projectile.destroy();
         }
+        for (const particle of this.flameParticles) {
+            particle.destroy();
+        }
 
         this.towers = [];
         this.enemies = [];
         this.projectiles = [];
+        this.flameParticles = [];
 
         // 重置状态
         this.gameState = GameState.IDLE;

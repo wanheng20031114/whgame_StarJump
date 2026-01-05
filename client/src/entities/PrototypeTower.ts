@@ -16,6 +16,20 @@ import { Position, TowerStats, TowerType } from '../types';
 import { Tower } from './Tower';
 
 /**
+ * 原型炮台攻击范围模板（半径为3的圆形/菱形）
+ * 7x7 矩阵，炮台位于中心 (3,3)
+ */
+const PROTOTYPE_RANGE_PATTERN = [
+    [0, 0, 0, 1, 0, 0, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1], // 中心行
+    [0, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 0, 0, 1, 0, 0, 0],
+];
+
+/**
  * 原型炮台默认属性
  */
 const PROTOTYPE_TOWER_STATS: TowerStats = {
@@ -25,7 +39,8 @@ const PROTOTYPE_TOWER_STATS: TowerStats = {
     magicResist: 10,
     attack: 10,
     attackSpeed: 1,  // 每秒攻击1次
-    range: 3,        // 攻击范围3格
+    range: 3,        // 攻击范围半径3格（备用）
+    rangePattern: PROTOTYPE_RANGE_PATTERN, // 使用内部定义的模板
 };
 
 /**
@@ -70,15 +85,22 @@ export class PrototypeTower extends Tower {
     }
 
     /**
+     * 获取名称
+     */
+    public getName(): string {
+        return '原型炮台';
+    }
+
+    /**
      * 获取炮台信息描述
      */
     public getDescription(): string {
-        return `原型炮台
+        return `${this.getName()}
 生命值: ${this.stats.health}/${this.stats.maxHealth}
 防御力: ${this.stats.defense}
 法术抗性: ${this.stats.magicResist}
 攻击力: ${this.stats.attack}
 攻击速度: ${this.stats.attackSpeed}/秒
-攻击范围: ${this.stats.range}格`;
+攻击范围: 自定义`;
     }
 }

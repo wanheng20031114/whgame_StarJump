@@ -23,7 +23,7 @@ const httpServer = createServer(app);
 
 // 配置 CORS
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
     credentials: true,
 }));
 
@@ -36,7 +36,7 @@ app.use(express.json());
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+        origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
         methods: ['GET', 'POST'],
         credentials: true,
     },
@@ -252,11 +252,12 @@ async function startServer(): Promise<void> {
     await initDatabase();
 
     // 启动 HTTP 服务器
-    httpServer.listen(PORT, () => {
+    httpServer.listen(PORT, '0.0.0.0', () => {
         console.log('='.repeat(50));
         console.log('星跃塔防 - 后端服务器');
         console.log('='.repeat(50));
-        console.log(`[服务器] 运行于 http://localhost:${PORT}`);
+        console.log(`[服务器] 运行于 http://0.0.0.0:${PORT}`);
+        console.log(`[服务器] 局域网访问地址: http://<你的IP>:${PORT}`);
         console.log('[服务器] 等待客户端连接...');
     });
 }
