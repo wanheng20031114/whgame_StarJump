@@ -6,7 +6,7 @@
  * 炮台只能放置在高台格子上
  */
 
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import { Position, TowerStats, TowerType } from '../types';
 
 /**
@@ -163,7 +163,6 @@ export abstract class Tower {
     protected findTarget(
         enemies: { id: string; position: Position; isAlive: boolean }[]
     ): { id: string; position: Position } | null {
-        const rangePixels = this.stats.range * this.tileSize;
         let nearest: { id: string; position: Position } | null = null;
         let nearestDistance = Infinity;
 
@@ -174,13 +173,97 @@ export abstract class Tower {
             const dy = enemy.position.y - this.pixelPosition.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance <= rangePixels && distance < nearestDistance) {
-                nearestDistance = distance;
-                nearest = enemy;
+            // 检查是否在范围内
+            if (this.isInRange(enemy.position.x, enemy.position.y)) {
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearest = enemy;
+                }
             }
         }
 
         return nearest;
+    }
+
+    /**
+     * 检查目标像素位置是否在攻击范围内
+     * @param targetX 目标像素 X
+     * @param targetY 目标像素 Y
+     */
+    public isInRange(targetX: number, targetY: number): boolean {
+        // 如果有攻击模板，使用模板检测（基于格子）
+        if (this.stats.rangePattern) {
+            const pattern = this.stats.rangePattern;
+            const patternHeight = pattern.length;
+            const patternWidth = pattern[0].length;
+
+            // 计算中心点（模板数组的中心）
+            const centerX = Math.floor(patternWidth / 2);
+            const centerY = Math.floor(patternHeight / 2);
+
+            // 计算目标相对于炮台的格子偏移
+            const targetTileX = Math.floor(targetX / this.tileSize);
+            const targetTileY = Math.floor(targetY / this.tileSize);
+            const offsetX = targetTileX - this.tilePosition.x;
+            const offsetY = targetTileY - this.tilePosition.y;
+
+            // 转换偏移到模板索引
+            const patternX = centerX + offsetX;
+            const patternY = centerY + offsetY;
+
+            // 检查是否在模板范围内且该位置为 1
+            if (patternY >= 0 && patternY < patternHeight && patternX >= 0 && patternX < patternWidth) {
+                return pattern[patternY][patternX] === 1;
+            }
+            return false;
+        }
+
+        // 默认使用传统的圆形范围（像素半径）
+        const dx = targetX - this.pixelPosition.x;
+        const dy = targetY - this.pixelPosition.y;
+        const rangePixels = this.stats.range * this.tileSize;
+        return Math.sqrt(dx * dx + dy * dy) <= rangePixels;
+    }
+
+    /**
+     * 获取攻击范围内的所有格子坐标
+     */
+    public getRangeTiles(): Position[] {
+        const tiles: Position[] = [];
+
+        if (this.stats.rangePattern) {
+            const pattern = this.stats.rangePattern;
+            const patternHeight = pattern.length;
+            const patternWidth = pattern[0].length;
+            const centerX = Math.floor(patternWidth / 2);
+            const centerY = Math.floor(patternHeight / 2);
+
+            for (let r = 0; r < patternHeight; r++) {
+                for (let c = 0; c < patternWidth; c++) {
+                    if (pattern[r][c] === 1) {
+                        tiles.push({
+                            x: this.tilePosition.x + (c - centerX),
+                            y: this.tilePosition.y + (r - centerY)
+                        });
+                    }
+                }
+            }
+        } else {
+            // 圆形范围估算
+            const range = Math.ceil(this.stats.range);
+            for (let y = -range; y <= range; y++) {
+                for (let x = -range; x <= range; x++) {
+                    if (Math.sqrt(x * x + y * y) <= this.stats.range) {
+                        tiles.push({
+                            x: this.tilePosition.x + x,
+                            y: this.tilePosition.y + y
+                        });
+                    }
+                }
+            }
+        }
+
+        return tiles;
     }
 
     /**
@@ -239,6 +322,18 @@ export abstract class Tower {
     public isAlive(): boolean {
         return this.alive;
     }
+
+    /**
+     * 获取属性数据
+     */
+    public getStats(): TowerStats {
+        return { ...this.stats };
+    }
+
+    /**
+     * 获取显示名称（由子类覆盖）
+     */
+    public abstract getName(): string;
 
     /**
      * 销毁炮台

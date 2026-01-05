@@ -50,6 +50,9 @@ export class WaveSystem {
     /** 波次是否进行中 */
     private waveInProgress: boolean = false;
 
+    /** 当前波次所有敌人是否已生成完毕 */
+    private allEnemiesSpawned: boolean = false;
+
     /** 敌人生成回调 */
     private onSpawnEnemy: ((type: EnemyType, gateIndex: number) => void) | null = null;
 
@@ -166,6 +169,7 @@ export class WaveSystem {
         this.waveInProgress = true;
         this.spawnedCount = 0;
         this.waveStartTime = Date.now();
+        this.allEnemiesSpawned = false; // 重置敌人生成完毕标志
 
         this.onWaveStart?.(wave.waveNumber);
 
@@ -200,11 +204,19 @@ export class WaveSystem {
         }
 
         // 检查波次是否完成（所有敌人都已生成）
-        if (this.spawnedCount >= wave.enemies.length) {
-            // 注意：波次结束应该在所有敌人被消灭后触发
-            // 这里只标记敌人生成完成
-            console.log(`[波次系统] 第 ${wave.waveNumber} 波敌人生成完毕`);
+        if (this.spawnedCount >= wave.enemies.length && !this.allEnemiesSpawned) {
+            // 标记敌人生成完毕
+            this.allEnemiesSpawned = true;
+            console.log(`[波次系统] 第 ${wave.waveNumber} 波敌人生成完毕，等待击溃所有敌人...`);
         }
+    }
+
+    /**
+     * 检查当前波次所有敌人是否已生成完毕
+     * @returns 是否所有敌人已生成
+     */
+    public isAllEnemiesSpawned(): boolean {
+        return this.allEnemiesSpawned;
     }
 
     /**
@@ -266,5 +278,6 @@ export class WaveSystem {
         this.spawnedCount = 0;
         this.waveStartTime = 0;
         this.waveInProgress = false;
+        this.allEnemiesSpawned = false;
     }
 }
