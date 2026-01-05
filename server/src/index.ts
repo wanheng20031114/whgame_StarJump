@@ -248,8 +248,8 @@ io.on('connection', (socket) => {
 // ============================================================
 
 async function startServer(): Promise<void> {
-    // 初始化数据库
-    initDatabase();
+    // 初始化数据库（异步）
+    await initDatabase();
 
     // 启动 HTTP 服务器
     httpServer.listen(PORT, () => {

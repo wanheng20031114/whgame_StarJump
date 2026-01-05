@@ -1,17 +1,34 @@
 /**
  * ============================================================
- * 内存数据库模块
+ * SQLite 数据库模块
  * ============================================================
- * 使用内存存储替代 SQLite（避免原生模块编译问题）
- * 管理用户账户信息（数据在服务器重启后会丢失）
+ * 使用 sql.js 实现真正的 SQLite 持久化存储
+ * 管理用户账户信息
+ * 
+ * sql.js 是一个纯 JavaScript 的 SQLite 实现，无需编译原生模块
  */
 
+import initSqlJs, { Database } from 'sql.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 // ============================================================
-// 数据类型定义
+// 数据库初始化
 // ============================================================
+
+// 获取当前文件目录
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 数据库文件路径
+const DATA_DIR = path.join(__dirname, '../../data');
+const DB_PATH = path.join(DATA_DIR, 'starjump.db');
+
+/** 数据库实例 */
+let db: Database | null = null;
 
 /**
  * 用户数据接口
@@ -23,23 +40,57 @@ export interface UserRow {
     created_at: string;
 }
 
-// ============================================================
-// 内存存储
-// ============================================================
-
-/** 用户数据存储 */
-const users: Map<string, UserRow> = new Map();
-
-/** 用户名到ID的映射 */
-const usernameIndex: Map<string, string> = new Map();
-
 /**
  * 初始化数据库
- * （内存版本无需实际初始化，但保留接口兼容性）
+ * 创建必要的表结构
  */
-export function initDatabase(): void {
-    console.log('[数据库] 使用内存存储模式（开发环境）');
-    console.log('[数据库] 注意：数据将在服务器重启后丢失');
+export async function initDatabase(): Promise<void> {
+    console.log('[数据库] 初始化 SQLite 数据库...');
+
+    // 确保数据目录存在
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        console.log(`[数据库] 创建数据目录: ${DATA_DIR}`);
+    }
+
+    // 初始化 sql.js
+    const SQL = await initSqlJs();
+
+    // 尝试加载现有数据库，如果不存在则创建新的
+    if (fs.existsSync(DB_PATH)) {
+        const fileBuffer = fs.readFileSync(DB_PATH);
+        db = new SQL.Database(fileBuffer);
+        console.log(`[数据库] 加载现有数据库: ${DB_PATH}`);
+    } else {
+        db = new SQL.Database();
+        console.log(`[数据库] 创建新数据库: ${DB_PATH}`);
+    }
+
+    // 创建用户表（如果不存在）
+    db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+    // 保存数据库到文件
+    saveDatabase();
+
+    console.log('[数据库] SQLite 数据库初始化完成');
+}
+
+/**
+ * 保存数据库到文件
+ */
+function saveDatabase(): void {
+    if (!db) return;
+
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
 }
 
 // ============================================================
@@ -53,6 +104,8 @@ export function initDatabase(): void {
  * @returns 创建的用户对象
  */
 export async function createUser(username: string, password: string): Promise<UserRow> {
+    if (!db) throw new Error('数据库未初始化');
+
     // 对密码进行哈希
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -61,21 +114,23 @@ export async function createUser(username: string, password: string): Promise<Us
     const id = uuidv4();
     const createdAt = new Date().toISOString();
 
-    // 创建用户对象
-    const user: UserRow = {
+    // 插入用户
+    db.run(
+        'INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)',
+        [id, username, passwordHash, createdAt]
+    );
+
+    // 保存到文件
+    saveDatabase();
+
+    console.log(`[数据库] 创建用户: ${username}`);
+
+    return {
         id,
         username,
         password_hash: passwordHash,
         created_at: createdAt,
     };
-
-    // 存储用户
-    users.set(id, user);
-    usernameIndex.set(username.toLowerCase(), id);
-
-    console.log(`[数据库] 创建用户: ${username}`);
-
-    return user;
 }
 
 /**
@@ -84,9 +139,19 @@ export async function createUser(username: string, password: string): Promise<Us
  * @returns 用户对象，不存在则返回 undefined
  */
 export function findUserByUsername(username: string): UserRow | undefined {
-    const userId = usernameIndex.get(username.toLowerCase());
-    if (!userId) return undefined;
-    return users.get(userId);
+    if (!db) return undefined;
+
+    const stmt = db.prepare('SELECT * FROM users WHERE username = ?');
+    stmt.bind([username]);
+
+    if (stmt.step()) {
+        const row = stmt.getAsObject() as UserRow;
+        stmt.free();
+        return row;
+    }
+
+    stmt.free();
+    return undefined;
 }
 
 /**
@@ -95,7 +160,19 @@ export function findUserByUsername(username: string): UserRow | undefined {
  * @returns 用户对象，不存在则返回 undefined
  */
 export function findUserById(id: string): UserRow | undefined {
-    return users.get(id);
+    if (!db) return undefined;
+
+    const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
+    stmt.bind([id]);
+
+    if (stmt.step()) {
+        const row = stmt.getAsObject() as UserRow;
+        stmt.free();
+        return row;
+    }
+
+    stmt.free();
+    return undefined;
 }
 
 /**
@@ -112,20 +189,28 @@ export async function validatePassword(password: string, hash: string): Promise<
  * 获取所有用户（用于调试）
  */
 export function getAllUsers(): UserRow[] {
-    return Array.from(users.values()).map(user => ({
-        id: user.id,
-        username: user.username,
-        password_hash: '[HIDDEN]',
-        created_at: user.created_at,
-    }));
+    if (!db) return [];
+
+    const results: UserRow[] = [];
+    const stmt = db.prepare('SELECT id, username, created_at FROM users');
+
+    while (stmt.step()) {
+        results.push(stmt.getAsObject() as UserRow);
+    }
+
+    stmt.free();
+    return results;
 }
 
 /**
  * 关闭数据库连接
- * （内存版本无需关闭，保留接口兼容性）
  */
 export function closeDatabase(): void {
-    console.log('[数据库] 内存存储已清理');
-    users.clear();
-    usernameIndex.clear();
+    if (db) {
+        // 保存最终状态
+        saveDatabase();
+        db.close();
+        db = null;
+        console.log('[数据库] SQLite 连接已关闭');
+    }
 }
