@@ -44,24 +44,30 @@ export class CombatSystem {
     ): number {
         let finalDamage: number;
 
+        // 保底伤害逻辑（参考明日方舟：伤害不低于原攻击力的 5%）
+        const minimumDamage = Math.max(1, Math.floor(baseDamage * 0.05));
+
         switch (damageType) {
             case DamageType.PHYSICAL:
-                // 物理伤害公式
-                finalDamage = baseDamage * (100 / (100 + defense));
+                // 物理伤害：减算公式 [基础攻击 - 防御力]
+                // 高防敌人可以大幅削减物理伤害
+                finalDamage = Math.max(minimumDamage, baseDamage - defense);
                 break;
             case DamageType.MAGICAL:
-                // 法术伤害公式
-                finalDamage = baseDamage * (100 / (100 + magicResist));
+                // 法术伤害：乘算公式 [基础攻击 * (1 - 抗性/100)]
+                // 法术抗性作为百分比减免，Res=50 表示减免 50%
+                const resistReduction = Math.min(100, Math.max(0, magicResist)) / 100;
+                finalDamage = Math.max(minimumDamage, baseDamage * (1 - resistReduction));
                 break;
             case DamageType.TRUE:
-                // 真实伤害，不受任何减免
+                // 真实伤害：不受任何减免
                 finalDamage = baseDamage;
                 break;
             default:
                 finalDamage = baseDamage;
         }
 
-        // 确保伤害至少为 1
+        // 最终伤害取整，且不低于 1
         return Math.max(1, Math.floor(finalDamage));
     }
 

@@ -253,14 +253,51 @@ export class GameMap {
         tile.hasTower = hasTower;
 
         // 更新格子视觉
+        const graphics = this.tileGraphics[y][x];
         if (hasTower) {
-            // 标记已放置炮台的格子
-            const graphics = this.tileGraphics[y][x];
+            // 标记已放置炮台的格子（绿色半透明覆盖）
             graphics.rect(4, 4, this.tileSize - 8, this.tileSize - 8);
             graphics.fill({ color: 0x27ae60, alpha: 0.5 });
+        } else {
+            // 移除炮台时，重绘格子以清除绿色标记
+            this.redrawTile(x, y);
         }
 
         return true;
+    }
+
+    /**
+     * 重绘单个格子
+     * 用于清除炮台放置标记
+     */
+    private redrawTile(x: number, y: number): void {
+        const tile = this.getTile(x, y);
+        if (!tile) return;
+
+        const oldGraphics = this.tileGraphics[y][x];
+        const parent = oldGraphics.parent;
+        const index = parent?.getChildIndex(oldGraphics) ?? -1;
+
+        // 移除旧图形
+        if (parent) {
+            parent.removeChild(oldGraphics);
+        }
+        oldGraphics.destroy();
+
+        // 创建新图形
+        const newGraphics = this.createTileGraphics(tile);
+        newGraphics.x = x * this.tileSize;
+        newGraphics.y = y * this.tileSize;
+
+        // 插入到原位置
+        if (parent && index >= 0) {
+            parent.addChildAt(newGraphics, index);
+        } else {
+            this.container.addChild(newGraphics);
+        }
+
+        // 更新引用
+        this.tileGraphics[y][x] = newGraphics;
     }
 
     /**

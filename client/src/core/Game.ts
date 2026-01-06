@@ -13,6 +13,7 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { GameMap } from './GameMap';
 import { AssetManager } from './AssetManager';
+import { Position, GameState, EnemyType, TowerType } from '../types';
 import { PathFinding } from '../systems/PathFinding';
 import { CombatSystem, DamageType } from '../systems/CombatSystem';
 import { WaveSystem } from '../systems/WaveSystem';
@@ -22,11 +23,12 @@ import { FlameThrower, FlameSpawnData } from '../entities/FlameThrower';
 import { FlameParticle } from '../entities/FlameParticle';
 import { Enemy } from '../entities/Enemy';
 import { Zombie } from '../entities/Zombie';
+import { CapooSwordsman } from '../entities/CapooSwordsman';
 import { Projectile } from '../entities/Projectile';
+import { DamagePopup } from '../ui/DamagePopup';
 import { DeploymentBar } from '../ui/DeploymentBar';
 import { RangeOverlay } from '../ui/RangeOverlay';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
-import { GameState, EnemyType, TileType, TowerType } from '../types';
 
 /**
  * 游戏主类
@@ -56,6 +58,12 @@ export class Game {
     /** 子弹层容器 */
     private projectileLayer: Container;
 
+    /** 血条层（确保所有血条在最上方） */
+    private healthBarLayer: Container;
+
+    /** 飘字伤害层 */
+    private popupLayer: Container;
+
     /** UI层容器 */
     private uiLayer: Container;
 
@@ -71,6 +79,9 @@ export class Game {
     /** 火焰粒子列表（喷火器攻击） */
     private flameParticles: FlameParticle[] = [];
 
+    /** 伤害飘字列表 */
+    private popups: DamagePopup[] = [];
+
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
 
@@ -81,7 +92,7 @@ export class Game {
     private maxCoreHealth: number = 10;
 
     /** 金币 */
-    private gold: number = 100;
+    private gold: number = 400;
 
     /** 实体ID计数器 */
     private entityIdCounter: number = 0;
@@ -130,13 +141,17 @@ export class Game {
         this.mapLayer = new Container();
         this.entityLayer = new Container();
         this.projectileLayer = new Container();
+        this.healthBarLayer = new Container();
+        this.popupLayer = new Container();
         this.uiLayer = new Container();
 
         // 添加到舞台
         this.app.stage.addChild(this.mapLayer);
         this.app.stage.addChild(this.entityLayer);
         this.app.stage.addChild(this.projectileLayer);
-        this.app.stage.addChild(this.uiLayer);
+        this.app.stage.addChild(this.healthBarLayer); // 高于实体和子弹
+        this.app.stage.addChild(this.popupLayer);     // 高于血条
+        this.app.stage.addChild(this.uiLayer);        // 最顶层UI
 
         // 创建攻击范围层（位于地图上，实体下）
         this.rangeOverlay = new RangeOverlay();
@@ -176,7 +191,9 @@ export class Game {
 
         // 初始化信息面板
         this.towerInfoPanel = new TowerInfoPanel();
-        this.towerInfoPanel.setPosition(20, this.app.screen.height - 230);
+        this.towerInfoPanel.setOnRemoveTower((tower) => {
+            this.removeTower(tower);
+        });
         this.uiLayer.addChild(this.towerInfoPanel.getContainer());
 
         // 设置交互事件
@@ -208,6 +225,10 @@ export class Game {
         this.entityLayer.y = offsetY;
         this.projectileLayer.x = offsetX;
         this.projectileLayer.y = offsetY;
+        this.healthBarLayer.x = offsetX;
+        this.healthBarLayer.y = offsetY;
+        this.popupLayer.x = offsetX;
+        this.popupLayer.y = offsetY;
 
         if (this.rangeOverlay) {
             this.rangeOverlay.getContainer().x = offsetX;
@@ -338,7 +359,11 @@ export class Game {
         // 交互
         button.eventMode = 'static';
         button.cursor = 'pointer';
-        button.on('pointerdown', onClick);
+        button.on('pointerdown', () => {
+            // 播放点击音效
+            AssetManager.getInstance().playClickSound();
+            onClick();
+        });
 
         return button;
     }
@@ -468,6 +493,12 @@ export class Game {
         this.entityLayer.addChild(container);
         this.gameMap.setTowerOnTile(x, y, true);
 
+        // 将炮台血条添加到独立的血条层
+        this.healthBarLayer.addChild(tower.getHealthBarContainer());
+
+        // 播放放置成功音效
+        AssetManager.getInstance().playPlantingSound();
+
         console.log(`[游戏] 放置${towerType === TowerType.FLAMETHROWER ? '喷火器' : '炮台'}于 (${x}, ${y})`);
     }
 
@@ -479,14 +510,52 @@ export class Game {
         if (tower) {
             // 显示攻击范围覆盖
             this.rangeOverlay?.show(tower.getRangeTiles());
-            // 显示面板信息
-            this.towerInfoPanel?.show(tower);
+            // 计算炮台在屏幕上的实际位置（地图坐标 + 地图偏移）
+            const towerPos = tower.getPosition();
+            const screenPos = {
+                x: towerPos.x + this.mapLayer.x,
+                y: towerPos.y + this.mapLayer.y,
+            };
+            // 显示面板信息（传递屏幕坐标以便显示在右侧）
+            this.towerInfoPanel?.show(tower, screenPos);
             console.log(`[游戏] 选中炮台: ${tower.getName()}`);
         } else {
             // 隐藏覆盖和面板
             this.rangeOverlay?.hide();
             this.towerInfoPanel?.hide();
         }
+    }
+
+    /**
+     * 移除炮台（撤销部署）
+     * 不返还任何费用
+     * @param tower 要移除的炮台
+     */
+    private removeTower(tower: Tower): void {
+        const index = this.towers.indexOf(tower);
+        if (index === -1) {
+            console.warn('[游戏] 尝试移除不存在的炮台');
+            return;
+        }
+
+        // 从地图上标记为空
+        const tilePos = tower.getTilePosition();
+        this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
+
+        // 从血条层移除血条
+        const healthBar = tower.getHealthBarContainer();
+        if (healthBar.parent) {
+            healthBar.parent.removeChild(healthBar);
+        }
+
+        // 销毁炮台
+        tower.destroy();
+        this.towers.splice(index, 1);
+
+        // 隐藏面板和范围覆盖
+        this.selectTower(null);
+
+        console.log(`[游戏] 撤销部署：${tower.getName()}，位置 (${tilePos.x}, ${tilePos.y})`);
     }
 
     /**
@@ -546,6 +615,9 @@ export class Game {
             case EnemyType.ZOMBIE:
                 enemy = new Zombie(id, startPos);
                 break;
+            case EnemyType.CAPOO_SWORDSMAN:
+                enemy = new CapooSwordsman(id, startPos);
+                break;
             default:
                 enemy = new Zombie(id, startPos);
         }
@@ -561,6 +633,7 @@ export class Game {
         enemy.setPath(path);
         this.enemies.push(enemy);
         this.entityLayer.addChild(enemy.getContainer());
+        this.healthBarLayer.addChild(enemy.getHealthBarContainer()); // 将血条添加到血条层
 
         console.log(`[游戏] 生成敌人 ${type}，路径长度: ${path.length}`);
     }
@@ -615,6 +688,9 @@ export class Game {
 
         // 更新火焰粒子（喷火器攻击）
         this.updateFlameParticles(clampedDelta);
+
+        // 更新伤害飘字
+        this.updateDamagePopups(clampedDelta);
 
         // 清理死亡实体
         this.cleanupDeadEntities();
@@ -685,6 +761,11 @@ export class Game {
             this.flameParticles.push(particle);
             this.projectileLayer.addChild(particle.getContainer());
         }
+
+        // 播放喷火器开火音效（每次喷射只播放一次）
+        if (particles.length > 0) {
+            AssetManager.getInstance().playFlameThrowerFireSound();
+        }
     }
 
     /**
@@ -699,6 +780,9 @@ export class Game {
         const projectile = new Projectile(id, startPos, damage, speed, targetId, tower.id);
         this.projectiles.push(projectile);
         this.projectileLayer.addChild(projectile.getContainer());
+
+        // 播放原型炮台开火音效
+        AssetManager.getInstance().playPrototypeTowerFireSound();
     }
 
     /**
@@ -754,6 +838,9 @@ export class Game {
                 target.takeDamage(damage);
                 projectile.hit();
 
+                // 添加伤害飘字
+                this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+
                 console.log(`[游戏] 子弹命中敌人，造成 ${damage} 伤害`);
 
                 // 击杀奖励
@@ -785,13 +872,16 @@ export class Game {
                     // 造成伤害
                     const damage = this.combatSystem.calculateDamage(
                         particle.getDamage(),
-                        DamageType.PHYSICAL,
+                        DamageType.MAGICAL, // 假设火焰是魔法伤害
                         enemy.getDefense(),
                         enemy.getMagicResist()
                     );
 
                     enemy.takeDamage(damage);
                     particle.hit();
+
+                    // 添加伤害飘字
+                    this.addDamagePopup(damage, DamageType.MAGICAL, enemy.getPosition());
 
                     // 击杀奖励
                     if (!enemy.isAlive()) {
@@ -812,6 +902,11 @@ export class Game {
         // 清理死亡的敌人
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (!this.enemies[i].isAlive()) {
+                // 先从血条层移除该敌人的血条
+                const healthBar = this.enemies[i].getHealthBarContainer();
+                if (healthBar.parent) {
+                    healthBar.parent.removeChild(healthBar);
+                }
                 this.enemies[i].destroy();
                 this.enemies.splice(i, 1);
             }
@@ -822,6 +917,11 @@ export class Game {
             if (!this.towers[i].isAlive()) {
                 const tilePos = this.towers[i].getTilePosition();
                 this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
+                // 先从血条层移除该炮台的血条
+                const healthBar = this.towers[i].getHealthBarContainer();
+                if (healthBar.parent) {
+                    healthBar.parent.removeChild(healthBar);
+                }
                 this.towers[i].destroy();
                 this.towers.splice(i, 1);
             }
@@ -840,6 +940,14 @@ export class Game {
             if (!this.flameParticles[i].isAlive()) {
                 this.flameParticles[i].destroy();
                 this.flameParticles.splice(i, 1);
+            }
+        }
+
+        // 清理消失的伤害飘字
+        for (let i = this.popups.length - 1; i >= 0; i--) {
+            if (!this.popups[i].isAlive()) {
+                this.popups[i].destroy();
+                this.popups.splice(i, 1);
             }
         }
     }
@@ -881,6 +989,28 @@ export class Game {
         // 更新部署栏金币（用于禁用/启用单位按钮）
         if (this.deploymentBar) {
             this.deploymentBar.updateGold(this.gold);
+        }
+    }
+
+    /**
+     * 添加伤害飘字
+     * @param damage 伤害数值
+     * @param type 伤害类型
+     * @param position 弹出位置（像素坐标）
+     */
+    private addDamagePopup(damage: number, type: DamageType, position: Position): void {
+        const popup = new DamagePopup(damage, type, position);
+        this.popups.push(popup);
+        this.popupLayer.addChild(popup.getContainer());
+    }
+
+    /**
+     * 更新所有伤害飘字
+     * @param deltaTime 时间增量
+     */
+    private updateDamagePopups(deltaTime: number): void {
+        for (const popup of this.popups) {
+            popup.update(deltaTime);
         }
     }
 
@@ -955,6 +1085,19 @@ export class Game {
         this.updateUI();
 
         console.log('[游戏] 游戏已重置');
+    }
+
+    /**
+     * 处理窗口缩放
+     * 重新居中地图和 UI
+     */
+    public onResize(): void {
+        this.centerMap();
+        // 重新设置部署栏位置
+        if (this.deploymentBar) {
+            this.deploymentBar.centerAtBottom(this.app.screen.width, this.app.screen.height);
+        }
+        console.log('[游戏] 窗口缩放，重新居中');
     }
 
     /**

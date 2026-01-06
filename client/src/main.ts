@@ -197,6 +197,11 @@ class App {
         // 监听窗口大小变化
         window.addEventListener('resize', this.handleResize);
 
+        // 禁用画布内的右键菜单
+        this.pixiApp.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
         console.log('[应用] 游戏启动完成');
     }
 
@@ -227,10 +232,15 @@ class App {
 
     /**
      * 处理窗口大小变化
+     * 调整渲染器大小并重新居中地图
      */
     private handleResize = (): void => {
         if (this.pixiApp) {
             this.pixiApp.renderer.resize(window.innerWidth, window.innerHeight);
+            // 缩放后重新居中地图
+            if (this.game) {
+                this.game.onResize();
+            }
         }
     };
 }

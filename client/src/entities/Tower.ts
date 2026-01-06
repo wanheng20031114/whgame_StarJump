@@ -74,9 +74,8 @@ export abstract class Tower {
         this.graphics = this.createGraphics();
         this.container.addChild(this.graphics);
 
-        // 创建生命条
+        // 创建生命条（注意：不再直接添加到 container，由 Game 类管理图层）
         this.healthBar = this.createHealthBar();
-        this.container.addChild(this.healthBar);
 
         console.log(`[炮台] 创建 ${type} 炮台，位置: (${tilePos.x}, ${tilePos.y})`);
     }
@@ -92,6 +91,9 @@ export abstract class Tower {
     protected createHealthBar(): Graphics {
         const bar = new Graphics();
         this.updateHealthBar(bar);
+        // 设置血条初始位置（全局坐标，因为血条会被添加到独立图层）
+        bar.x = this.pixelPosition.x;
+        bar.y = this.pixelPosition.y;
         return bar;
     }
 
@@ -103,20 +105,23 @@ export abstract class Tower {
         healthBar.clear();
 
         const barWidth = 50;
-        const barHeight = 6;
+        const barHeight = 4;  // 更紧凑的血条高度
         const healthPercent = this.stats.health / this.stats.maxHealth;
 
+        // 血条 Y 偏移：在格子内顶部 (-tileSize/2 + 4)
+        const barY = -this.tileSize / 2 + 4;
+
         // 背景（黑色）
-        healthBar.rect(-barWidth / 2, -this.tileSize / 2 - 10, barWidth, barHeight);
+        healthBar.rect(-barWidth / 2, barY, barWidth, barHeight);
         healthBar.fill({ color: 0x000000 });
 
         // 生命值（绿色渐变到红色）
         const healthColor = healthPercent > 0.5 ? 0x27ae60 : healthPercent > 0.25 ? 0xf39c12 : 0xe74c3c;
-        healthBar.rect(-barWidth / 2, -this.tileSize / 2 - 10, barWidth * healthPercent, barHeight);
+        healthBar.rect(-barWidth / 2, barY, barWidth * healthPercent, barHeight);
         healthBar.fill({ color: healthColor });
 
         // 边框
-        healthBar.rect(-barWidth / 2, -this.tileSize / 2 - 10, barWidth, barHeight);
+        healthBar.rect(-barWidth / 2, barY, barWidth, barHeight);
         healthBar.stroke({ color: 0xffffff, width: 1 });
     }
 
@@ -218,11 +223,10 @@ export abstract class Tower {
             return false;
         }
 
-        // 默认使用传统的圆形范围（像素半径）
-        const dx = targetX - this.pixelPosition.x;
-        const dy = targetY - this.pixelPosition.y;
-        const rangePixels = this.stats.range * this.tileSize;
-        return Math.sqrt(dx * dx + dy * dy) <= rangePixels;
+        // 如果没有模板，默认只能攻击当前所在的格子
+        const targetTileX = Math.floor(targetX / this.tileSize);
+        const targetTileY = Math.floor(targetY / this.tileSize);
+        return targetTileX === this.tilePosition.x && targetTileY === this.tilePosition.y;
     }
 
     /**
@@ -249,18 +253,8 @@ export abstract class Tower {
                 }
             }
         } else {
-            // 圆形范围估算
-            const range = Math.ceil(this.stats.range);
-            for (let y = -range; y <= range; y++) {
-                for (let x = -range; x <= range; x++) {
-                    if (Math.sqrt(x * x + y * y) <= this.stats.range) {
-                        tiles.push({
-                            x: this.tilePosition.x + x,
-                            y: this.tilePosition.y + y
-                        });
-                    }
-                }
-            }
+            // 默认仅返回当前格子
+            tiles.push({ x: this.tilePosition.x, y: this.tilePosition.y });
         }
 
         return tiles;
@@ -289,6 +283,14 @@ export abstract class Tower {
     }
 
     /**
+     * 获取血条容器
+     * 用于在全局血条层显示，确保血条始终在最上方
+     */
+    public getHealthBarContainer(): Graphics {
+        return this.healthBar;
+    }
+
+    /**
      * 获取像素位置
      */
     public getPosition(): Position {
@@ -311,9 +313,40 @@ export abstract class Tower {
 
     /**
      * 获取攻击范围（像素）
+     * 基于 rangePattern 模板自动计算最大包围半径
      */
     public getRange(): number {
-        return this.stats.range * this.tileSize;
+        const stats = this.stats;
+
+        // 如果有模板，动态计算最远格子的中心点到炮台中心的像素距离作为半径
+        if (stats.rangePattern) {
+            const pattern = stats.rangePattern;
+            const rows = pattern.length;
+            const cols = pattern[0].length;
+            const centerX = Math.floor(cols / 2);
+            const centerY = Math.floor(rows / 2);
+
+            let maxDistSq = 0;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (pattern[y][x] === 1) {
+                        const dx = x - centerX;
+                        const dy = y - centerY;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq > maxDistSq) {
+                            maxDistSq = distSq;
+                        }
+                    }
+                }
+            }
+
+            // 返回最大格数半径乘以格子大小（这里取大致值用于外部逻辑参考）
+            return Math.sqrt(maxDistSq) * this.tileSize;
+        }
+
+        // 默认返回半格宽度
+        return this.tileSize / 2;
     }
 
     /**

@@ -155,8 +155,6 @@ export interface TowerStats {
     attack: number;
     /** 攻击速度（每秒攻击次数） */
     attackSpeed: number;
-    /** 攻击范围（格数，用于半径计算） */
-    range: number;
     /** 攻击范围模板（二维数组，1表示在范围内，0或中心标记表示不在） */
     rangePattern?: number[][];
 }
@@ -218,6 +216,7 @@ export interface Enemy extends Entity {
  */
 export enum EnemyType {
     ZOMBIE = 'zombie', // 僵尸
+    CAPOO_SWORDSMAN = 'capoo_swordsman', // Capoo 剑士
 }
 
 /**

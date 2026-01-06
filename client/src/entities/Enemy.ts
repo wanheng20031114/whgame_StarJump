@@ -68,9 +68,8 @@ export abstract class Enemy {
         this.graphics = this.createGraphics();
         this.container.addChild(this.graphics);
 
-        // 创建生命条
+        // 创建生命条（注意：不再直接添加到 container，由 Game 类管理图层）
         this.healthBar = this.createHealthBar();
-        this.container.addChild(this.healthBar);
 
         console.log(`[敌人] 创建 ${type}，起始位置: (${startPos.x}, ${startPos.y})`);
     }
@@ -86,6 +85,9 @@ export abstract class Enemy {
     protected createHealthBar(): Graphics {
         const bar = new Graphics();
         this.updateHealthBar(bar);
+        // 设置血条初始位置（全局坐标，因为血条会被添加到独立图层）
+        bar.x = this.position.x;
+        bar.y = this.position.y;
         return bar;
     }
 
@@ -175,6 +177,10 @@ export abstract class Enemy {
         this.container.x = this.position.x;
         this.container.y = this.position.y;
 
+        // 同步血条位置（因为血条已移至全局血条层，不再随本体容器移动）
+        this.healthBar.x = this.position.x;
+        this.healthBar.y = this.position.y;
+
         return false;
     }
 
@@ -226,6 +232,14 @@ export abstract class Enemy {
      */
     public isAlive(): boolean {
         return this.alive;
+    }
+
+    /**
+     * 获取血条容器
+     * 用于在全局血条层显示，确保血条始终在最上方
+     */
+    public getHealthBarContainer(): Graphics {
+        return this.healthBar;
     }
 
     /**

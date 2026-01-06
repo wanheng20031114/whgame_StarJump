@@ -6,6 +6,7 @@
  */
 
 import { SocketManager } from '../network/SocketManager';
+import { AssetManager } from '../core/AssetManager';
 
 /**
  * 登录页面类
@@ -128,7 +129,10 @@ export class LoginPage {
       width: 100%;
       margin-bottom: 12px;
     `;
-        loginBtn.onclick = () => this.handleLogin();
+        loginBtn.onclick = () => {
+            AssetManager.getInstance().playClickSound();
+            this.handleLogin();
+        };
         card.appendChild(loginBtn);
 
         // 注册按钮
@@ -138,7 +142,10 @@ export class LoginPage {
         registerBtn.style.cssText = `
       width: 100%;
     `;
-        registerBtn.onclick = () => this.handleRegister();
+        registerBtn.onclick = () => {
+            AssetManager.getInstance().playClickSound();
+            this.handleRegister();
+        };
         card.appendChild(registerBtn);
 
         container.appendChild(card);
