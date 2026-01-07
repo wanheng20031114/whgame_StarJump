@@ -194,7 +194,11 @@ export class TowerInfoPanel {
         this.statsTexts['attack'].text = stats.attack.toString();
         this.statsTexts['defense'].text = stats.defense.toString();
         this.statsTexts['magicResist'].text = stats.magicResist.toString();
-        this.statsTexts['attackSpeed'].text = `${stats.attackSpeed}/秒`;
+        // 攻速格式化：如果是小数则保留最多3位，整数则直接显示
+        const speedValue = Number.isInteger(stats.attackSpeed)
+            ? stats.attackSpeed.toString()
+            : parseFloat(stats.attackSpeed.toFixed(3)).toString();
+        this.statsTexts['attackSpeed'].text = `${speedValue}/秒`;
 
         // 绘制背景
         this.drawBackground();

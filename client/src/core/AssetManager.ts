@@ -19,11 +19,18 @@ import plantingSoundUrl from '../sound/planting.m4a';
 
 // 导入高清图片素材
 // @ts-ignore
-import prototypeTowerImg from '../assets/towers/PrototypeTower.png';
+import prototypeTowerImg from '../assets/towers/PrototypeTower/PrototypeTower.png';
 // @ts-ignore
-import flameThrowerImg from '../assets/towers/FlameThrower.png';
+import flameThrowerImg from '../assets/towers/FlameThrower/FlameThrower.png';
 // @ts-ignore
-import capooSwordsmanImg from '../assets/capoos/capoo_swordsman.png';
+import capooSwordsmanImg from '../assets/capoos/capoo_swordsman/capoo_swordsman.png';
+
+// 激光塔图标
+// @ts-ignore
+import laserTowerIconImg from '../assets/towers/LaserTower/LaserTower.png';
+// 激光塔动画精灵表（8帧水平排列）
+// @ts-ignore
+import laserTowerSpriteImg from '../assets/towers/LaserTower/LaserTower_sprite.png';
 
 /**
  * 资源管理器类
@@ -70,25 +77,34 @@ export class AssetManager {
         console.log('[资源管理器] 开始加载游戏资源...');
 
         try {
-            // 定义需要加载的资源列表
-            // 目前使用占位符颜色，后续可替换为实际图片路径
             // 1. 注册并加载高清图片资源
             Assets.add({ alias: 'tower_prototype', src: prototypeTowerImg });
             Assets.add({ alias: 'tower_flamethrower', src: flameThrowerImg });
             Assets.add({ alias: 'enemy_capoo', src: capooSwordsmanImg });
 
-            const textures = await Assets.load(['tower_prototype', 'tower_flamethrower', 'enemy_capoo']);
+            // 激光塔资源
+            Assets.add({ alias: 'tower_laser', src: laserTowerIconImg });
+            Assets.add({ alias: 'laser_sprite', src: laserTowerSpriteImg });
+
+            const textures = await Assets.load([
+                'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
+                'tower_laser', 'laser_sprite',
+            ]);
 
             // 2. 存入本地纹理缓存
             this.textures.set('tower_prototype', textures.tower_prototype);
             this.textures.set('tower_flamethrower', textures.tower_flamethrower);
             this.textures.set('enemy_capoo', textures.enemy_capoo);
 
+            // 激光塔纹理
+            this.textures.set('tower_laser', textures.tower_laser);
+            this.textures.set('laser_sprite', textures.laser_sprite);
+
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();
 
             this.loaded = true;
-            console.log('[资源管理器] 资源加载完成！（包含高清素材）');
+            console.log('[资源管理器] 资源加载完成！（包含激光塔精灵表）');
         } catch (error) {
             console.error('[资源管理器] 资源加载失败:', error);
             throw error;
@@ -135,7 +151,7 @@ export class AssetManager {
      * 使用原生 Audio API，确保非阻塞播放
      */
     public playClickSound(): void {
-        this.playSound(clickSoundUrl, 0.5);
+        this.playSound(clickSoundUrl, 0.8);
     }
 
     /**
@@ -162,7 +178,7 @@ export class AssetManager {
      * 播放炮台放置成功音效
      */
     public playPlantingSound(): void {
-        this.playSound(plantingSoundUrl, 0.4);
+        this.playSound(plantingSoundUrl, 0.5);
     }
 
     /**

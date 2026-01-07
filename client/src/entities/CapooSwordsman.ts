@@ -20,7 +20,7 @@ import { AssetManager } from '../core/AssetManager';
 const CAPOO_STATS: EnemyStats = {
     health: 250,
     maxHealth: 250,
-    defense: 20,
+    defense: 10,
     magicResist: 10,
     moveSpeed: 0.8, // 每秒移动0.8格，比僵尸快
 };

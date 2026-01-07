@@ -20,6 +20,8 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { Tower } from '../entities/Tower';
 import { PrototypeTower } from '../entities/PrototypeTower';
 import { FlameThrower, FlameSpawnData } from '../entities/FlameThrower';
+import { LaserTower, LaserFireData } from '../entities/LaserTower';
+import { LaserBeam } from '../entities/LaserBeam';
 import { FlameParticle } from '../entities/FlameParticle';
 import { Enemy } from '../entities/Enemy';
 import { Zombie } from '../entities/Zombie';
@@ -29,6 +31,7 @@ import { DamagePopup } from '../ui/DamagePopup';
 import { DeploymentBar } from '../ui/DeploymentBar';
 import { RangeOverlay } from '../ui/RangeOverlay';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
+import { DeathEffect } from '../effects/DeathEffect';
 
 /**
  * 游戏主类
@@ -81,6 +84,12 @@ export class Game {
 
     /** 伤害飘字列表 */
     private popups: DamagePopup[] = [];
+
+    /** 死亡特效列表 */
+    private deathEffects: DeathEffect[] = [];
+
+    /** 激光射线列表 */
+    private laserBeams: LaserBeam[] = [];
 
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
@@ -473,6 +482,9 @@ export class Game {
             case TowerType.FLAMETHROWER:
                 tower = new FlameThrower(id, { x, y });
                 break;
+            case TowerType.LASER:
+                tower = new LaserTower(id, { x, y });
+                break;
             case TowerType.PROTOTYPE:
             default:
                 tower = new PrototypeTower(id, { x, y });
@@ -692,8 +704,14 @@ export class Game {
         // 更新伤害飘字
         this.updateDamagePopups(clampedDelta);
 
+        // 更新激光射线
+        this.updateLaserBeams(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
+
+        // 更新死亡特效
+        this.updateDeathEffects(clampedDelta);
 
         // 检查波次完成
         this.checkWaveComplete();
@@ -731,11 +749,21 @@ export class Game {
                 }
             }
 
+            // 对于激光塔，需要设置激光发射回调
+            if (tower.type === TowerType.LASER && tower instanceof LaserTower) {
+                if (!tower._laserCallbackSet) {
+                    tower.setOnFireLaser((data: LaserFireData) => {
+                        this.fireLaser(data);
+                    });
+                    tower._laserCallbackSet = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             if (result.shouldFire && result.targetId) {
-                // 对于普通炮台，发射子弹（喷火器的火焰已通过回调处理）
-                if (tower.type !== TowerType.FLAMETHROWER) {
+                // 对于普通炮台，发射子弹（喷火器和激光塔已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER) {
                     this.fireProjectile(tower, result.targetId);
                 }
             }
@@ -783,6 +811,57 @@ export class Game {
 
         // 播放原型炮台开火音效
         AssetManager.getInstance().playPrototypeTowerFireSound();
+    }
+
+    /**
+     * 发射激光（激光塔攻击）
+     * @param data 激光发射数据
+     */
+    private fireLaser(data: LaserFireData): void {
+        // 查找目标敌人
+        const target = this.enemies.find(e => e.id === data.targetId && e.isAlive());
+        if (!target) return;
+
+        const targetPos = target.getPosition();
+
+        // 创建激光射线视觉效果
+        const beam = new LaserBeam(data.startPos, targetPos);
+        this.laserBeams.push(beam);
+        this.projectileLayer.addChild(beam.getContainer());
+
+        // 直接造成伤害（激光是即时命中）
+        const finalDamage = this.combatSystem.calculateDamage(
+            data.damage,
+            DamageType.MAGICAL, // 激光为法术伤害
+            target.getDefense(),
+            target.getMagicResist()
+        );
+        target.takeDamage(finalDamage);
+
+        // 添加伤害飘字
+        this.addDamagePopup(finalDamage, DamageType.MAGICAL, targetPos);
+
+        // 击杀奖励
+        if (!target.isAlive()) {
+            this.gold += 10;
+            this.updateUI();
+        }
+
+        console.log(`[激光塔] 对 ${data.targetId} 造成 ${finalDamage} 点法术伤害`);
+    }
+
+    /**
+     * 更新激光射线
+     */
+    private updateLaserBeams(deltaTime: number): void {
+        for (let i = this.laserBeams.length - 1; i >= 0; i--) {
+            const beam = this.laserBeams[i];
+            beam.update(deltaTime);
+            if (!beam.isAlive()) {
+                beam.destroy();
+                this.laserBeams.splice(i, 1);
+            }
+        }
     }
 
     /**
@@ -902,12 +981,15 @@ export class Game {
         // 清理死亡的敌人
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (!this.enemies[i].isAlive()) {
+                const enemy = this.enemies[i];
+                // 创建死亡特效
+                this.spawnDeathEffect(enemy.getPosition(), 30, 0x2ecc71);
                 // 先从血条层移除该敌人的血条
-                const healthBar = this.enemies[i].getHealthBarContainer();
+                const healthBar = enemy.getHealthBarContainer();
                 if (healthBar.parent) {
                     healthBar.parent.removeChild(healthBar);
                 }
-                this.enemies[i].destroy();
+                enemy.destroy();
                 this.enemies.splice(i, 1);
             }
         }
@@ -915,14 +997,17 @@ export class Game {
         // 清理死亡的炮台
         for (let i = this.towers.length - 1; i >= 0; i--) {
             if (!this.towers[i].isAlive()) {
-                const tilePos = this.towers[i].getTilePosition();
+                const tower = this.towers[i];
+                const tilePos = tower.getTilePosition();
                 this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
+                // 创建死亡特效
+                this.spawnDeathEffect(tower.getPosition(), 40, 0x3498db);
                 // 先从血条层移除该炮台的血条
-                const healthBar = this.towers[i].getHealthBarContainer();
+                const healthBar = tower.getHealthBarContainer();
                 if (healthBar.parent) {
                     healthBar.parent.removeChild(healthBar);
                 }
-                this.towers[i].destroy();
+                tower.destroy();
                 this.towers.splice(i, 1);
             }
         }
@@ -1011,6 +1096,33 @@ export class Game {
     private updateDamagePopups(deltaTime: number): void {
         for (const popup of this.popups) {
             popup.update(deltaTime);
+        }
+    }
+
+    /**
+     * 生成死亡特效
+     * @param position 死亡位置
+     * @param size 实体大小
+     * @param color 实体颜色
+     */
+    private spawnDeathEffect(position: Position, size: number, color: number): void {
+        const effect = new DeathEffect(position, size, color);
+        this.deathEffects.push(effect);
+        this.entityLayer.addChild(effect.getContainer());
+    }
+
+    /**
+     * 更新所有死亡特效
+     * @param deltaTime 时间增量
+     */
+    private updateDeathEffects(deltaTime: number): void {
+        for (let i = this.deathEffects.length - 1; i >= 0; i--) {
+            const effect = this.deathEffects[i];
+            effect.update(deltaTime);
+            if (!effect.isAlive()) {
+                effect.destroy();
+                this.deathEffects.splice(i, 1);
+            }
         }
     }
 

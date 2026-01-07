@@ -123,6 +123,13 @@ export class DeploymentBar {
                 color: 0xff4500,
                 description: '近战范围攻击，攻击周围8格',
             },
+            {
+                type: TowerType.LASER,
+                name: '激光塔',
+                cost: 120,
+                color: 0xff3333,
+                description: '高伤害激光，每6秒攻击一次',
+            },
         ];
     }
 
@@ -176,6 +183,7 @@ export class DeploymentBar {
         let textureName = '';
         if (unit.type === TowerType.PROTOTYPE) textureName = 'tower_prototype';
         else if (unit.type === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
+        else if (unit.type === TowerType.LASER) textureName = 'tower_laser';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 
@@ -269,6 +277,7 @@ export class DeploymentBar {
         let textureName = '';
         if (unitType === TowerType.PROTOTYPE) textureName = 'tower_prototype';
         else if (unitType === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
+        else if (unitType === TowerType.LASER) textureName = 'tower_laser';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 

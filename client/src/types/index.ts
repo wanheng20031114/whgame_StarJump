@@ -179,6 +179,7 @@ export interface Tower extends Entity {
 export enum TowerType {
     PROTOTYPE = 'prototype',     // 原型炮台
     FLAMETHROWER = 'flamethrower', // 喷火器
+    LASER = 'laser',             // 激光塔
 }
 
 /**
