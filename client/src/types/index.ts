@@ -190,6 +190,8 @@ export interface EnemyStats {
     health: number;
     /** 最大生命值 */
     maxHealth: number;
+    /** 攻击力 */
+    attack: number;
     /** 物理防御力 */
     defense: number;
     /** 法术抗性 */
@@ -218,6 +220,8 @@ export interface Enemy extends Entity {
 export enum EnemyType {
     ZOMBIE = 'zombie', // 僵尸
     CAPOO_SWORDSMAN = 'capoo_swordsman', // Capoo 剑士
+    CAPOO_BUBBLETEA = 'capoo_bubbletea', // Capoo 珍珠奶茶
+    CAPOO_AK47 = 'capoo_ak47', // Capoo AK47
 }
 
 /**

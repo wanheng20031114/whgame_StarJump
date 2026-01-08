@@ -7,7 +7,7 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import { Position, EnemyStats, EnemyType } from '../types';
+import { Position, EnemyStats, EnemyType } from '../../types';
 
 /**
  * 敌人基类
@@ -45,6 +45,13 @@ export abstract class Enemy {
 
     /** 格子大小 */
     protected readonly tileSize: number = 64;
+
+    /** 
+     * 攻击范围模板（二维数组，1表示可攻击，0表示不可攻击）
+     * 中心点为数组中心，与 Tower 的 rangePattern 一致
+     * 默认为自身所在格 [[1]]
+     */
+    protected rangePattern: number[][] = [[1]];
 
     /**
      * 构造函数
@@ -240,6 +247,45 @@ export abstract class Enemy {
      */
     public getHealthBarContainer(): Graphics {
         return this.healthBar;
+    }
+
+    /**
+     * 获取当前格子位置
+     */
+    public getCurrentTilePosition(): Position {
+        return {
+            x: Math.floor(this.position.x / this.tileSize),
+            y: Math.floor(this.position.y / this.tileSize),
+        };
+    }
+
+    /**
+     * 检查目标格子是否在攻击范围内
+     * @param targetTileX 目标格子X
+     * @param targetTileY 目标格子Y
+     */
+    public isInRange(targetTileX: number, targetTileY: number): boolean {
+        const currentTile = this.getCurrentTilePosition();
+        const patternRows = this.rangePattern.length;
+        const patternCols = this.rangePattern[0].length;
+        const centerRow = Math.floor(patternRows / 2);
+        const centerCol = Math.floor(patternCols / 2);
+
+        // 计算目标相对于自身的偏移
+        const offsetX = targetTileX - currentTile.x;
+        const offsetY = targetTileY - currentTile.y;
+
+        // 转换为模板数组索引
+        const patternRow = centerRow + offsetY;
+        const patternCol = centerCol + offsetX;
+
+        // 检查是否在模板范围内且可攻击
+        if (patternRow >= 0 && patternRow < patternRows &&
+            patternCol >= 0 && patternCol < patternCols) {
+            return this.rangePattern[patternRow][patternCol] === 1;
+        }
+
+        return false;
     }
 
     /**

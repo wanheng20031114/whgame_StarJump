@@ -11,7 +11,7 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import { Position } from '../types';
+import { Position } from '../../../types';
 
 /**
  * 激光射线类

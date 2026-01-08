@@ -10,9 +10,9 @@
  */
 
 import { Graphics, Sprite } from 'pixi.js';
-import { Position, EnemyStats, EnemyType } from '../types';
-import { Enemy } from './Enemy';
-import { AssetManager } from '../core/AssetManager';
+import { Position, EnemyStats, EnemyType } from '../../../types';
+import { Enemy } from '../Enemy';
+import { AssetManager } from '../../../core/AssetManager';
 
 /**
  * Capoo 剑士默认属性
@@ -20,6 +20,7 @@ import { AssetManager } from '../core/AssetManager';
 const CAPOO_STATS: EnemyStats = {
     health: 250,
     maxHealth: 250,
+    attack: 0, // 剑士没有远程攻击，暂为0
     defense: 10,
     magicResist: 10,
     moveSpeed: 0.8, // 每秒移动0.8格，比僵尸快

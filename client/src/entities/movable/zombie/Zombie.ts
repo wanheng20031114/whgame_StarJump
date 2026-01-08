@@ -8,13 +8,14 @@
  */
 
 import { Graphics } from 'pixi.js';
-import { Position, EnemyStats, EnemyType } from '../types';
-import { Enemy } from './Enemy';
+import { Position, EnemyStats, EnemyType } from '../../../types';
+import { Enemy } from '../Enemy';
 
 /**
  * 僵尸默认属性
  */
 const ZOMBIE_STATS: EnemyStats = {
+    attack: 0,
     health: 100,
     maxHealth: 100,  // 与 health 保持一致
     defense: 1,

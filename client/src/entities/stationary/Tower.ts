@@ -7,7 +7,7 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import { Position, TowerStats, TowerType } from '../types';
+import { Position, TowerStats, TowerType } from '../../types';
 
 /**
  * 炮台基类
@@ -309,6 +309,20 @@ export abstract class Tower {
      */
     public getAttack(): number {
         return this.stats.attack;
+    }
+
+    /**
+     * 获取防御力
+     */
+    public getDefense(): number {
+        return this.stats.defense;
+    }
+
+    /**
+     * 获取法术抗性
+     */
+    public getMagicResist(): number {
+        return this.stats.magicResist;
     }
 
     /**

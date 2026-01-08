@@ -20,9 +20,9 @@
  */
 
 import { Graphics, Sprite } from 'pixi.js';
-import { Position, TowerStats, TowerType } from '../types';
-import { Tower } from './Tower';
-import { AssetManager } from '../core/AssetManager';
+import { Position, TowerStats, TowerType } from '../../../types';
+import { Tower } from '../Tower';
+import { AssetManager } from '../../../core/AssetManager';
 
 /**
  * 喷火器攻击范围模板（周围 8 格）

@@ -24,9 +24,9 @@
  */
 
 import { Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
-import { Position, TowerStats, TowerType } from '../types';
-import { Tower } from './Tower';
-import { AssetManager } from '../core/AssetManager';
+import { Position, TowerStats, TowerType } from '../../../types';
+import { Tower } from '../Tower';
+import { AssetManager } from '../../../core/AssetManager';
 
 /**
  * 激光塔状态枚举
@@ -61,7 +61,7 @@ const LASER_STATS: TowerStats = {
     defense: 10,
     magicResist: 20,
     attack: 80,
-    attackSpeed: 0.33333,
+    attackSpeed: 0.5,
     rangePattern: LASER_RANGE_PATTERN,
 };
 

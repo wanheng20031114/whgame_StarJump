@@ -17,16 +17,20 @@ import { Position, GameState, EnemyType, TowerType } from '../types';
 import { PathFinding } from '../systems/PathFinding';
 import { CombatSystem, DamageType } from '../systems/CombatSystem';
 import { WaveSystem } from '../systems/WaveSystem';
-import { Tower } from '../entities/Tower';
-import { PrototypeTower } from '../entities/PrototypeTower';
-import { FlameThrower, FlameSpawnData } from '../entities/FlameThrower';
-import { LaserTower, LaserFireData } from '../entities/LaserTower';
-import { LaserBeam } from '../entities/LaserBeam';
-import { FlameParticle } from '../entities/FlameParticle';
-import { Enemy } from '../entities/Enemy';
-import { Zombie } from '../entities/Zombie';
-import { CapooSwordsman } from '../entities/CapooSwordsman';
-import { Projectile } from '../entities/Projectile';
+import { Tower } from '../entities/stationary/Tower';
+import { PrototypeTower } from '../entities/stationary/prototype_tower/PrototypeTower';
+import { FlameThrower, FlameSpawnData } from '../entities/stationary/flame_thrower/FlameThrower';
+import { LaserTower, LaserFireData } from '../entities/stationary/laser_tower/LaserTower';
+import { LaserBeam } from '../entities/stationary/laser_tower/LaserBeam';
+import { FlameParticle } from '../entities/stationary/flame_thrower/FlameParticle';
+import { Enemy } from '../entities/movable/Enemy';
+import { Zombie } from '../entities/movable/zombie/Zombie';
+import { CapooSwordsman } from '../entities/movable/capoo_swordsman/CapooSwordsman';
+import { CapooBubbleTea, BubblePearlData } from '../entities/movable/capoo_bubble_tea/CapooBubbleTea';
+import { CapooAK47, AK47BulletData } from '../entities/movable/capoo_ak47/CapooAK47';
+import { BubblePearl } from '../entities/movable/capoo_bubble_tea/BubblePearl';
+import { AK47Bullet } from '../entities/movable/capoo_ak47/AK47Bullet';
+import { Projectile } from '../entities/stationary/Projectile';
 import { DamagePopup } from '../ui/DamagePopup';
 import { DeploymentBar } from '../ui/DeploymentBar';
 import { RangeOverlay } from '../ui/RangeOverlay';
@@ -91,6 +95,12 @@ export class Game {
     /** 激光射线列表 */
     private laserBeams: LaserBeam[] = [];
 
+    /** 珍珠投射物列表（珍珠奶茶Capoo攻击） */
+    private bubblePearls: BubblePearl[] = [];
+
+    /** AK47 子弹列表（AK47 Capoo攻击） */
+    private ak47Bullets: import('../entities/movable/capoo_ak47/AK47Bullet').AK47Bullet[] = [];
+
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
 
@@ -101,7 +111,7 @@ export class Game {
     private maxCoreHealth: number = 10;
 
     /** 金币 */
-    private gold: number = 400;
+    private gold: number = 10000;
 
     /** 实体ID计数器 */
     private entityIdCounter: number = 0;
@@ -630,6 +640,12 @@ export class Game {
             case EnemyType.CAPOO_SWORDSMAN:
                 enemy = new CapooSwordsman(id, startPos);
                 break;
+            case EnemyType.CAPOO_BUBBLETEA:
+                enemy = new CapooBubbleTea(id, startPos);
+                break;
+            case EnemyType.CAPOO_AK47:
+                enemy = new CapooAK47(id, startPos);
+                break;
             default:
                 enemy = new Zombie(id, startPos);
         }
@@ -706,6 +722,12 @@ export class Game {
 
         // 更新激光射线
         this.updateLaserBeams(clampedDelta);
+
+        // 更新珍珠投射物（珍珠奶茶Capoo攻击）
+        this.updateBubblePearls(clampedDelta);
+
+        // 更新 AK47 子弹（AK47 Capoo攻击）
+        this.updateAK47Bullets(clampedDelta);
 
         // 清理死亡实体
         this.cleanupDeadEntities();
@@ -829,6 +851,9 @@ export class Game {
         this.laserBeams.push(beam);
         this.projectileLayer.addChild(beam.getContainer());
 
+        // 播放激光塔开火音效
+        AssetManager.getInstance().playLaserTowerFireSound();
+
         // 直接造成伤害（激光是即时命中）
         const finalDamage = this.combatSystem.calculateDamage(
             data.damage,
@@ -865,11 +890,186 @@ export class Game {
     }
 
     /**
+     * 发射珍珠（珍珠奶茶 Capoo 攻击）
+     * @param data 珍珠发射数据
+     */
+    private fireBubblePearls(data: BubblePearlData): void {
+        // 查找目标炮台
+        const target = this.towers.find(t => t.id === data.targetId && t.isAlive());
+        if (!target) return;
+
+        // 发射多颗珍珠（带有小幅随机偏移）
+        for (let i = 0; i < data.count; i++) {
+            // 起始位置添加随机偏移
+            const offsetX = (Math.random() - 0.5) * 10;
+            const offsetY = (Math.random() - 0.5) * 10;
+            const startPos = {
+                x: data.startPos.x + offsetX,
+                y: data.startPos.y + offsetY,
+            };
+
+            // 目标位置也添加小幅偏移
+            const targetOffsetX = (Math.random() - 0.5) * 20;
+            const targetOffsetY = (Math.random() - 0.5) * 20;
+            const targetPos = {
+                x: data.targetPos.x + targetOffsetX,
+                y: data.targetPos.y + targetOffsetY,
+            };
+
+            const pearl = new BubblePearl(
+                startPos,
+                targetPos,
+                data.damage,
+                data.targetId,
+                'enemy' // 发射者类型标识
+            );
+            this.bubblePearls.push(pearl);
+            this.projectileLayer.addChild(pearl.getContainer());
+        }
+
+        console.log(`[珍珠奶茶Capoo] 发射 ${data.count} 颗珍珠攻击 ${data.targetId}`);
+    }
+
+    /**
+     * 更新珍珠投射物
+     */
+    private updateBubblePearls(deltaTime: number): void {
+        for (let i = this.bubblePearls.length - 1; i >= 0; i--) {
+            const pearl = this.bubblePearls[i];
+            const hit = pearl.update(deltaTime);
+
+            if (hit) {
+                // 命中目标炮台，造成伤害
+                const target = this.towers.find(t => t.id === pearl.targetId && t.isAlive());
+                if (target) {
+                    const damage = this.combatSystem.calculateDamage(
+                        pearl.damage,
+                        DamageType.PHYSICAL,
+                        target.getDefense(),
+                        target.getMagicResist()
+                    );
+                    target.takeDamage(damage);
+
+                    // 添加伤害飘字
+                    this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+                }
+            }
+
+            if (!pearl.isAlive()) {
+                pearl.destroy();
+                this.bubblePearls.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 发射 AK47 子弹（AK47 Capoo 攻击）
+     */
+    private fireAK47Bullets(data: AK47BulletData): void {
+        for (let i = 0; i < data.count; i++) {
+            // 起始位置添加小幅随机偏移（模拟散射）
+            const offsetX = (Math.random() - 0.5) * 5;
+            const offsetY = (Math.random() - 0.5) * 5;
+            const startPos = {
+                x: data.startPos.x + offsetX,
+                y: data.startPos.y + offsetY,
+            };
+
+            // 目标位置也添加小幅偏移
+            const targetOffsetX = (Math.random() - 0.5) * 15;
+            const targetOffsetY = (Math.random() - 0.5) * 15;
+            const targetPos = {
+                x: data.targetPos.x + targetOffsetX,
+                y: data.targetPos.y + targetOffsetY,
+            };
+
+            const bullet = new AK47Bullet(
+                startPos,
+                targetPos,
+                data.damage,
+                data.targetId,
+                'enemy' // 发射者类型标识
+            );
+            this.ak47Bullets.push(bullet);
+            this.projectileLayer.addChild(bullet.getContainer());
+        }
+    }
+
+    /**
+     * 更新 AK47 子弹
+     */
+    private updateAK47Bullets(deltaTime: number): void {
+        for (let i = this.ak47Bullets.length - 1; i >= 0; i--) {
+            const bullet = this.ak47Bullets[i];
+            const hit = bullet.update(deltaTime);
+
+            if (hit) {
+                // 命中目标炮台，造成伤害
+                const target = this.towers.find(t => t.id === bullet.targetId && t.isAlive());
+                if (target) {
+                    const damage = this.combatSystem.calculateDamage(
+                        bullet.damage,
+                        DamageType.PHYSICAL,
+                        target.getDefense(),
+                        target.getMagicResist()
+                    );
+                    target.takeDamage(damage);
+                    this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+                }
+            }
+
+            // 清理失效子弹
+            if (!bullet.isAlive()) {
+                bullet.destroy();
+                this.ak47Bullets.splice(i, 1);
+            }
+        }
+    }
+
+    /**
      * 更新敌人
      */
     private updateEnemies(deltaTime: number): void {
+        // 收集炮台信息用于珍珠奶茶 Capoo 攻击检测
+        const towerInfos = this.towers
+            .filter(t => t.isAlive())
+            .map(t => ({
+                id: t.id,
+                tilePos: t.getTilePosition(),
+                pixelPos: t.getPosition(),
+                isAlive: t.isAlive(),
+            }));
+
         for (const enemy of this.enemies) {
             if (!enemy.isAlive()) continue;
+
+            // 珍珠奶茶 Capoo 特殊处理
+            if (enemy.type === EnemyType.CAPOO_BUBBLETEA && enemy instanceof CapooBubbleTea) {
+                // 设置珍珠发射回调（如果尚未设置）
+                if (!enemy._pearlCallbackSet) {
+                    enemy.setOnFirePearls((data: BubblePearlData) => {
+                        this.fireBubblePearls(data);
+                    });
+                    enemy._pearlCallbackSet = true;
+                }
+
+                // 尝试攻击范围内的炮台
+                enemy.tryAttack(towerInfos);
+            }
+
+            // AK47 Capoo 特殊处理
+            if (enemy.type === EnemyType.CAPOO_AK47 && enemy instanceof CapooAK47) {
+                // 设置子弹发射回调（如果尚未设置）
+                if (!enemy._bulletCallbackSet) {
+                    enemy.setOnFireBullets((data: AK47BulletData) => {
+                        this.fireAK47Bullets(data);
+                    });
+                    enemy._bulletCallbackSet = true;
+                }
+
+                // 尝试攻击范围内的炮台
+                enemy.tryAttack(towerInfos);
+            }
 
             const reachedEnd = enemy.update(deltaTime);
 

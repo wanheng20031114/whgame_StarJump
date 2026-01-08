@@ -72,7 +72,16 @@ export class WaveSystem {
         // 初始化默认波次配置
         this.waves = this.createDefaultWaves();
     }
-
+    //临时函数。测试用
+    private test1(n: number) {
+        let su = [];
+        for (let i = 0; i < n; i++) {
+            su.push(
+                { type: EnemyType.CAPOO_AK47, delay: i * 500, gateIndex: 0 }
+            );
+        }
+        return su;
+    }
     /**
      * 创建默认波次配置
      * 当前配置为单人模式 5 波挑战
@@ -86,17 +95,13 @@ export class WaveSystem {
             {
                 waveNumber: 1,
                 prepareTime: 3000,
-                enemies: [
-                    // 前 5 个僵尸，间隔 2 秒
-                    { type: EnemyType.ZOMBIE, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 4000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 6000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 8000, gateIndex: 0 },
-                    // 穿插 2 个 Capoo 剑士（较快，具有一定威胁）
-                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 10000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 12000, gateIndex: 0 },
-                ],
+                enemies: this.test1(80),
+                // enemies: [
+                //     { type: EnemyType.CAPOO_AK47, delay: 0, gateIndex: 0 },
+                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
+                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
+                //     
+                // ],
             },
             // ============================================================
             // 第 2 波：压制（8 僵尸 + 3 Capoo）
@@ -106,9 +111,14 @@ export class WaveSystem {
                 waveNumber: 2,
                 prepareTime: 5000,
                 enemies: [
-                    { type: EnemyType.ZOMBIE, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 1500, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 3000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 0, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1500, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 3000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1000, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 4000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 6000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 8000, gateIndex: 0 },
                     { type: EnemyType.CAPOO_SWORDSMAN, delay: 4500, gateIndex: 0 },
                     { type: EnemyType.ZOMBIE, delay: 6000, gateIndex: 0 },
                     { type: EnemyType.ZOMBIE, delay: 7500, gateIndex: 0 },

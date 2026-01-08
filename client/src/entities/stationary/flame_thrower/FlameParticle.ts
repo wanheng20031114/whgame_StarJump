@@ -11,7 +11,7 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import { Position } from '../types';
+import { Position } from '../../../types';
 
 /**
  * 火焰粒子类

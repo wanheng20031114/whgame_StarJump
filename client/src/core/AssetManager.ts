@@ -16,6 +16,12 @@ import flameThrowerFireUrl from '../sound/FlameThrower_fire.m4a';
 import prototypeTowerFireUrl from '../sound/PrototypeTower_fire.m4a';
 // @ts-ignore
 import plantingSoundUrl from '../sound/planting.m4a';
+// @ts-ignore
+import laserTowerFireUrl from '../sound/LaserTower_fire.m4a';
+// @ts-ignore
+import capooBubbleTeaFireUrl from '../sound/capoo_BubbleTea_fire.m4a';
+// @ts-ignore
+import capooAK47FireUrl from '../sound/capoo_ak47_fire.m4a';
 
 // 导入高清图片素材
 // @ts-ignore
@@ -31,6 +37,18 @@ import laserTowerIconImg from '../assets/towers/LaserTower/LaserTower.png';
 // 激光塔动画精灵表（8帧水平排列）
 // @ts-ignore
 import laserTowerSpriteImg from '../assets/towers/LaserTower/LaserTower_sprite.png';
+
+// 珍珠奶茶 Capoo 资源
+// @ts-ignore
+import capooBubbleTeaImg from '../assets/capoos/capoo_BubbleTea/capoo_BubbleTea.png';
+// @ts-ignore
+import capooBubbleTeaSpriteImg from '../assets/capoos/capoo_BubbleTea/capoo_BubbleTea_sprite.png';
+
+// AK47 Capoo 资源
+// @ts-ignore
+import capooAK47Img from '../assets/capoos/capoo_ak47/capoo_ak47.png';
+// @ts-ignore
+import capooAK47SpriteImg from '../assets/capoos/capoo_ak47/capoo_ak47_sprite.png';
 
 /**
  * 资源管理器类
@@ -86,9 +104,19 @@ export class AssetManager {
             Assets.add({ alias: 'tower_laser', src: laserTowerIconImg });
             Assets.add({ alias: 'laser_sprite', src: laserTowerSpriteImg });
 
+            // 珍珠奶茶 Capoo 资源
+            Assets.add({ alias: 'capoo_bubbletea', src: capooBubbleTeaImg });
+            Assets.add({ alias: 'capoo_bubbletea_attack_sprite', src: capooBubbleTeaSpriteImg });
+
+            // AK47 Capoo 资源
+            Assets.add({ alias: 'capoo_ak47', src: capooAK47Img });
+            Assets.add({ alias: 'capoo_ak47_attack_sprite', src: capooAK47SpriteImg });
+
             const textures = await Assets.load([
                 'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
                 'tower_laser', 'laser_sprite',
+                'capoo_bubbletea', 'capoo_bubbletea_attack_sprite',
+                'capoo_ak47', 'capoo_ak47_attack_sprite',
             ]);
 
             // 2. 存入本地纹理缓存
@@ -100,11 +128,19 @@ export class AssetManager {
             this.textures.set('tower_laser', textures.tower_laser);
             this.textures.set('laser_sprite', textures.laser_sprite);
 
+            // 珍珠奶茶 Capoo 纹理
+            this.textures.set('capoo_bubbletea', textures.capoo_bubbletea);
+            this.textures.set('capoo_bubbletea_attack_sprite', textures.capoo_bubbletea_attack_sprite);
+
+            // AK47 Capoo 纹理
+            this.textures.set('capoo_ak47', textures.capoo_ak47);
+            this.textures.set('capoo_ak47_attack_sprite', textures.capoo_ak47_attack_sprite);
+
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();
 
             this.loaded = true;
-            console.log('[资源管理器] 资源加载完成！（包含激光塔精灵表）');
+            console.log('[资源管理器] 资源加载完成！（包含珍珠奶茶Capoo精灵表）');
         } catch (error) {
             console.error('[资源管理器] 资源加载失败:', error);
             throw error;
@@ -171,7 +207,7 @@ export class AssetManager {
      * 播放原型炮台开火音效
      */
     public playPrototypeTowerFireSound(): void {
-        this.playSound(prototypeTowerFireUrl, 0.06);
+        this.playSound(prototypeTowerFireUrl, 0.1);
     }
 
     /**
@@ -179,6 +215,27 @@ export class AssetManager {
      */
     public playPlantingSound(): void {
         this.playSound(plantingSoundUrl, 0.5);
+    }
+
+    /**
+     * 播放激光塔开火音效
+     */
+    public playLaserTowerFireSound(): void {
+        this.playSound(laserTowerFireUrl, 0.2);
+    }
+
+    /**
+     * 播放珍珠奶茶 Capoo 开火音效
+     */
+    public playCapooBubbleTeaFireSound(): void {
+        this.playSound(capooBubbleTeaFireUrl, 0.2);
+    }
+
+    /**
+     * 播放 AK47 Capoo 开火音效
+     */
+    public playCapooAK47FireSound(): void {
+        this.playSound(capooAK47FireUrl, 0.26);
     }
 
     /**

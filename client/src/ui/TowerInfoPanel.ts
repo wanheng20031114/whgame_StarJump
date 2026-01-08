@@ -9,7 +9,7 @@
  */
 
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { Tower } from '../entities/Tower';
+import { Tower } from '../entities/stationary/Tower';
 import { Position } from '../types';
 import { AssetManager } from '../core/AssetManager';
 
