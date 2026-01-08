@@ -8,16 +8,17 @@
  */
 
 import { Graphics } from 'pixi.js';
-import { Position, EnemyStats, EnemyType } from '../types';
-import { Enemy } from './Enemy';
+import { Position, EnemyStats, EnemyType } from '../../../types';
+import { Enemy } from '../Enemy';
 
 /**
  * 僵尸默认属性
  */
 const ZOMBIE_STATS: EnemyStats = {
-    health: 50,
-    maxHealth: 50,
-    defense: 5,
+    attack: 0,
+    health: 100,
+    maxHealth: 100,  // 与 health 保持一致
+    defense: 1,
     magicResist: 0,
     moveSpeed: 0.5,  // 每秒移动0.5格
 };

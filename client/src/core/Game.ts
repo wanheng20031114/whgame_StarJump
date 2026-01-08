@@ -13,20 +13,29 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { GameMap } from './GameMap';
 import { AssetManager } from './AssetManager';
+import { Position, GameState, EnemyType, TowerType } from '../types';
 import { PathFinding } from '../systems/PathFinding';
 import { CombatSystem, DamageType } from '../systems/CombatSystem';
 import { WaveSystem } from '../systems/WaveSystem';
-import { Tower } from '../entities/Tower';
-import { PrototypeTower } from '../entities/PrototypeTower';
-import { FlameThrower, FlameSpawnData } from '../entities/FlameThrower';
-import { FlameParticle } from '../entities/FlameParticle';
-import { Enemy } from '../entities/Enemy';
-import { Zombie } from '../entities/Zombie';
-import { Projectile } from '../entities/Projectile';
+import { Tower } from '../entities/stationary/Tower';
+import { PrototypeTower } from '../entities/stationary/prototype_tower/PrototypeTower';
+import { FlameThrower, FlameSpawnData } from '../entities/stationary/flame_thrower/FlameThrower';
+import { LaserTower, LaserFireData } from '../entities/stationary/laser_tower/LaserTower';
+import { LaserBeam } from '../entities/stationary/laser_tower/LaserBeam';
+import { FlameParticle } from '../entities/stationary/flame_thrower/FlameParticle';
+import { Enemy } from '../entities/movable/Enemy';
+import { Zombie } from '../entities/movable/zombie/Zombie';
+import { CapooSwordsman } from '../entities/movable/capoo_swordsman/CapooSwordsman';
+import { CapooBubbleTea, BubblePearlData } from '../entities/movable/capoo_bubble_tea/CapooBubbleTea';
+import { CapooAK47, AK47BulletData } from '../entities/movable/capoo_ak47/CapooAK47';
+import { BubblePearl } from '../entities/movable/capoo_bubble_tea/BubblePearl';
+import { AK47Bullet } from '../entities/movable/capoo_ak47/AK47Bullet';
+import { Projectile } from '../entities/stationary/Projectile';
+import { DamagePopup } from '../ui/DamagePopup';
 import { DeploymentBar } from '../ui/DeploymentBar';
 import { RangeOverlay } from '../ui/RangeOverlay';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
-import { GameState, EnemyType, TileType, TowerType } from '../types';
+import { DeathEffect } from '../effects/DeathEffect';
 
 /**
  * 游戏主类
@@ -56,6 +65,12 @@ export class Game {
     /** 子弹层容器 */
     private projectileLayer: Container;
 
+    /** 血条层（确保所有血条在最上方） */
+    private healthBarLayer: Container;
+
+    /** 飘字伤害层 */
+    private popupLayer: Container;
+
     /** UI层容器 */
     private uiLayer: Container;
 
@@ -71,6 +86,21 @@ export class Game {
     /** 火焰粒子列表（喷火器攻击） */
     private flameParticles: FlameParticle[] = [];
 
+    /** 伤害飘字列表 */
+    private popups: DamagePopup[] = [];
+
+    /** 死亡特效列表 */
+    private deathEffects: DeathEffect[] = [];
+
+    /** 激光射线列表 */
+    private laserBeams: LaserBeam[] = [];
+
+    /** 珍珠投射物列表（珍珠奶茶Capoo攻击） */
+    private bubblePearls: BubblePearl[] = [];
+
+    /** AK47 子弹列表（AK47 Capoo攻击） */
+    private ak47Bullets: import('../entities/movable/capoo_ak47/AK47Bullet').AK47Bullet[] = [];
+
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
 
@@ -81,7 +111,7 @@ export class Game {
     private maxCoreHealth: number = 10;
 
     /** 金币 */
-    private gold: number = 100;
+    private gold: number = 10000;
 
     /** 实体ID计数器 */
     private entityIdCounter: number = 0;
@@ -130,13 +160,17 @@ export class Game {
         this.mapLayer = new Container();
         this.entityLayer = new Container();
         this.projectileLayer = new Container();
+        this.healthBarLayer = new Container();
+        this.popupLayer = new Container();
         this.uiLayer = new Container();
 
         // 添加到舞台
         this.app.stage.addChild(this.mapLayer);
         this.app.stage.addChild(this.entityLayer);
         this.app.stage.addChild(this.projectileLayer);
-        this.app.stage.addChild(this.uiLayer);
+        this.app.stage.addChild(this.healthBarLayer); // 高于实体和子弹
+        this.app.stage.addChild(this.popupLayer);     // 高于血条
+        this.app.stage.addChild(this.uiLayer);        // 最顶层UI
 
         // 创建攻击范围层（位于地图上，实体下）
         this.rangeOverlay = new RangeOverlay();
@@ -176,7 +210,9 @@ export class Game {
 
         // 初始化信息面板
         this.towerInfoPanel = new TowerInfoPanel();
-        this.towerInfoPanel.setPosition(20, this.app.screen.height - 230);
+        this.towerInfoPanel.setOnRemoveTower((tower) => {
+            this.removeTower(tower);
+        });
         this.uiLayer.addChild(this.towerInfoPanel.getContainer());
 
         // 设置交互事件
@@ -208,6 +244,10 @@ export class Game {
         this.entityLayer.y = offsetY;
         this.projectileLayer.x = offsetX;
         this.projectileLayer.y = offsetY;
+        this.healthBarLayer.x = offsetX;
+        this.healthBarLayer.y = offsetY;
+        this.popupLayer.x = offsetX;
+        this.popupLayer.y = offsetY;
 
         if (this.rangeOverlay) {
             this.rangeOverlay.getContainer().x = offsetX;
@@ -338,7 +378,11 @@ export class Game {
         // 交互
         button.eventMode = 'static';
         button.cursor = 'pointer';
-        button.on('pointerdown', onClick);
+        button.on('pointerdown', () => {
+            // 播放点击音效
+            AssetManager.getInstance().playClickSound();
+            onClick();
+        });
 
         return button;
     }
@@ -448,6 +492,9 @@ export class Game {
             case TowerType.FLAMETHROWER:
                 tower = new FlameThrower(id, { x, y });
                 break;
+            case TowerType.LASER:
+                tower = new LaserTower(id, { x, y });
+                break;
             case TowerType.PROTOTYPE:
             default:
                 tower = new PrototypeTower(id, { x, y });
@@ -468,6 +515,12 @@ export class Game {
         this.entityLayer.addChild(container);
         this.gameMap.setTowerOnTile(x, y, true);
 
+        // 将炮台血条添加到独立的血条层
+        this.healthBarLayer.addChild(tower.getHealthBarContainer());
+
+        // 播放放置成功音效
+        AssetManager.getInstance().playPlantingSound();
+
         console.log(`[游戏] 放置${towerType === TowerType.FLAMETHROWER ? '喷火器' : '炮台'}于 (${x}, ${y})`);
     }
 
@@ -479,14 +532,52 @@ export class Game {
         if (tower) {
             // 显示攻击范围覆盖
             this.rangeOverlay?.show(tower.getRangeTiles());
-            // 显示面板信息
-            this.towerInfoPanel?.show(tower);
+            // 计算炮台在屏幕上的实际位置（地图坐标 + 地图偏移）
+            const towerPos = tower.getPosition();
+            const screenPos = {
+                x: towerPos.x + this.mapLayer.x,
+                y: towerPos.y + this.mapLayer.y,
+            };
+            // 显示面板信息（传递屏幕坐标以便显示在右侧）
+            this.towerInfoPanel?.show(tower, screenPos);
             console.log(`[游戏] 选中炮台: ${tower.getName()}`);
         } else {
             // 隐藏覆盖和面板
             this.rangeOverlay?.hide();
             this.towerInfoPanel?.hide();
         }
+    }
+
+    /**
+     * 移除炮台（撤销部署）
+     * 不返还任何费用
+     * @param tower 要移除的炮台
+     */
+    private removeTower(tower: Tower): void {
+        const index = this.towers.indexOf(tower);
+        if (index === -1) {
+            console.warn('[游戏] 尝试移除不存在的炮台');
+            return;
+        }
+
+        // 从地图上标记为空
+        const tilePos = tower.getTilePosition();
+        this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
+
+        // 从血条层移除血条
+        const healthBar = tower.getHealthBarContainer();
+        if (healthBar.parent) {
+            healthBar.parent.removeChild(healthBar);
+        }
+
+        // 销毁炮台
+        tower.destroy();
+        this.towers.splice(index, 1);
+
+        // 隐藏面板和范围覆盖
+        this.selectTower(null);
+
+        console.log(`[游戏] 撤销部署：${tower.getName()}，位置 (${tilePos.x}, ${tilePos.y})`);
     }
 
     /**
@@ -546,6 +637,15 @@ export class Game {
             case EnemyType.ZOMBIE:
                 enemy = new Zombie(id, startPos);
                 break;
+            case EnemyType.CAPOO_SWORDSMAN:
+                enemy = new CapooSwordsman(id, startPos);
+                break;
+            case EnemyType.CAPOO_BUBBLETEA:
+                enemy = new CapooBubbleTea(id, startPos);
+                break;
+            case EnemyType.CAPOO_AK47:
+                enemy = new CapooAK47(id, startPos);
+                break;
             default:
                 enemy = new Zombie(id, startPos);
         }
@@ -561,6 +661,7 @@ export class Game {
         enemy.setPath(path);
         this.enemies.push(enemy);
         this.entityLayer.addChild(enemy.getContainer());
+        this.healthBarLayer.addChild(enemy.getHealthBarContainer()); // 将血条添加到血条层
 
         console.log(`[游戏] 生成敌人 ${type}，路径长度: ${path.length}`);
     }
@@ -616,8 +717,23 @@ export class Game {
         // 更新火焰粒子（喷火器攻击）
         this.updateFlameParticles(clampedDelta);
 
+        // 更新伤害飘字
+        this.updateDamagePopups(clampedDelta);
+
+        // 更新激光射线
+        this.updateLaserBeams(clampedDelta);
+
+        // 更新珍珠投射物（珍珠奶茶Capoo攻击）
+        this.updateBubblePearls(clampedDelta);
+
+        // 更新 AK47 子弹（AK47 Capoo攻击）
+        this.updateAK47Bullets(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
+
+        // 更新死亡特效
+        this.updateDeathEffects(clampedDelta);
 
         // 检查波次完成
         this.checkWaveComplete();
@@ -655,11 +771,21 @@ export class Game {
                 }
             }
 
+            // 对于激光塔，需要设置激光发射回调
+            if (tower.type === TowerType.LASER && tower instanceof LaserTower) {
+                if (!tower._laserCallbackSet) {
+                    tower.setOnFireLaser((data: LaserFireData) => {
+                        this.fireLaser(data);
+                    });
+                    tower._laserCallbackSet = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             if (result.shouldFire && result.targetId) {
-                // 对于普通炮台，发射子弹（喷火器的火焰已通过回调处理）
-                if (tower.type !== TowerType.FLAMETHROWER) {
+                // 对于普通炮台，发射子弹（喷火器和激光塔已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER) {
                     this.fireProjectile(tower, result.targetId);
                 }
             }
@@ -685,6 +811,11 @@ export class Game {
             this.flameParticles.push(particle);
             this.projectileLayer.addChild(particle.getContainer());
         }
+
+        // 播放喷火器开火音效（每次喷射只播放一次）
+        if (particles.length > 0) {
+            AssetManager.getInstance().playFlameThrowerFireSound();
+        }
     }
 
     /**
@@ -699,14 +830,246 @@ export class Game {
         const projectile = new Projectile(id, startPos, damage, speed, targetId, tower.id);
         this.projectiles.push(projectile);
         this.projectileLayer.addChild(projectile.getContainer());
+
+        // 播放原型炮台开火音效
+        AssetManager.getInstance().playPrototypeTowerFireSound();
+    }
+
+    /**
+     * 发射激光（激光塔攻击）
+     * @param data 激光发射数据
+     */
+    private fireLaser(data: LaserFireData): void {
+        // 查找目标敌人
+        const target = this.enemies.find(e => e.id === data.targetId && e.isAlive());
+        if (!target) return;
+
+        const targetPos = target.getPosition();
+
+        // 创建激光射线视觉效果
+        const beam = new LaserBeam(data.startPos, targetPos);
+        this.laserBeams.push(beam);
+        this.projectileLayer.addChild(beam.getContainer());
+
+        // 播放激光塔开火音效
+        AssetManager.getInstance().playLaserTowerFireSound();
+
+        // 直接造成伤害（激光是即时命中）
+        const finalDamage = this.combatSystem.calculateDamage(
+            data.damage,
+            DamageType.MAGICAL, // 激光为法术伤害
+            target.getDefense(),
+            target.getMagicResist()
+        );
+        target.takeDamage(finalDamage);
+
+        // 添加伤害飘字
+        this.addDamagePopup(finalDamage, DamageType.MAGICAL, targetPos);
+
+        // 击杀奖励
+        if (!target.isAlive()) {
+            this.gold += 10;
+            this.updateUI();
+        }
+
+        console.log(`[激光塔] 对 ${data.targetId} 造成 ${finalDamage} 点法术伤害`);
+    }
+
+    /**
+     * 更新激光射线
+     */
+    private updateLaserBeams(deltaTime: number): void {
+        for (let i = this.laserBeams.length - 1; i >= 0; i--) {
+            const beam = this.laserBeams[i];
+            beam.update(deltaTime);
+            if (!beam.isAlive()) {
+                beam.destroy();
+                this.laserBeams.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 发射珍珠（珍珠奶茶 Capoo 攻击）
+     * @param data 珍珠发射数据
+     */
+    private fireBubblePearls(data: BubblePearlData): void {
+        // 查找目标炮台
+        const target = this.towers.find(t => t.id === data.targetId && t.isAlive());
+        if (!target) return;
+
+        // 发射多颗珍珠（带有小幅随机偏移）
+        for (let i = 0; i < data.count; i++) {
+            // 起始位置添加随机偏移
+            const offsetX = (Math.random() - 0.5) * 10;
+            const offsetY = (Math.random() - 0.5) * 10;
+            const startPos = {
+                x: data.startPos.x + offsetX,
+                y: data.startPos.y + offsetY,
+            };
+
+            // 目标位置也添加小幅偏移
+            const targetOffsetX = (Math.random() - 0.5) * 20;
+            const targetOffsetY = (Math.random() - 0.5) * 20;
+            const targetPos = {
+                x: data.targetPos.x + targetOffsetX,
+                y: data.targetPos.y + targetOffsetY,
+            };
+
+            const pearl = new BubblePearl(
+                startPos,
+                targetPos,
+                data.damage,
+                data.targetId,
+                'enemy' // 发射者类型标识
+            );
+            this.bubblePearls.push(pearl);
+            this.projectileLayer.addChild(pearl.getContainer());
+        }
+
+        console.log(`[珍珠奶茶Capoo] 发射 ${data.count} 颗珍珠攻击 ${data.targetId}`);
+    }
+
+    /**
+     * 更新珍珠投射物
+     */
+    private updateBubblePearls(deltaTime: number): void {
+        for (let i = this.bubblePearls.length - 1; i >= 0; i--) {
+            const pearl = this.bubblePearls[i];
+            const hit = pearl.update(deltaTime);
+
+            if (hit) {
+                // 命中目标炮台，造成伤害
+                const target = this.towers.find(t => t.id === pearl.targetId && t.isAlive());
+                if (target) {
+                    const damage = this.combatSystem.calculateDamage(
+                        pearl.damage,
+                        DamageType.PHYSICAL,
+                        target.getDefense(),
+                        target.getMagicResist()
+                    );
+                    target.takeDamage(damage);
+
+                    // 添加伤害飘字
+                    this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+                }
+            }
+
+            if (!pearl.isAlive()) {
+                pearl.destroy();
+                this.bubblePearls.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 发射 AK47 子弹（AK47 Capoo 攻击）
+     */
+    private fireAK47Bullets(data: AK47BulletData): void {
+        for (let i = 0; i < data.count; i++) {
+            // 起始位置添加小幅随机偏移（模拟散射）
+            const offsetX = (Math.random() - 0.5) * 5;
+            const offsetY = (Math.random() - 0.5) * 5;
+            const startPos = {
+                x: data.startPos.x + offsetX,
+                y: data.startPos.y + offsetY,
+            };
+
+            // 目标位置也添加小幅偏移
+            const targetOffsetX = (Math.random() - 0.5) * 15;
+            const targetOffsetY = (Math.random() - 0.5) * 15;
+            const targetPos = {
+                x: data.targetPos.x + targetOffsetX,
+                y: data.targetPos.y + targetOffsetY,
+            };
+
+            const bullet = new AK47Bullet(
+                startPos,
+                targetPos,
+                data.damage,
+                data.targetId,
+                'enemy' // 发射者类型标识
+            );
+            this.ak47Bullets.push(bullet);
+            this.projectileLayer.addChild(bullet.getContainer());
+        }
+    }
+
+    /**
+     * 更新 AK47 子弹
+     */
+    private updateAK47Bullets(deltaTime: number): void {
+        for (let i = this.ak47Bullets.length - 1; i >= 0; i--) {
+            const bullet = this.ak47Bullets[i];
+            const hit = bullet.update(deltaTime);
+
+            if (hit) {
+                // 命中目标炮台，造成伤害
+                const target = this.towers.find(t => t.id === bullet.targetId && t.isAlive());
+                if (target) {
+                    const damage = this.combatSystem.calculateDamage(
+                        bullet.damage,
+                        DamageType.PHYSICAL,
+                        target.getDefense(),
+                        target.getMagicResist()
+                    );
+                    target.takeDamage(damage);
+                    this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+                }
+            }
+
+            // 清理失效子弹
+            if (!bullet.isAlive()) {
+                bullet.destroy();
+                this.ak47Bullets.splice(i, 1);
+            }
+        }
     }
 
     /**
      * 更新敌人
      */
     private updateEnemies(deltaTime: number): void {
+        // 收集炮台信息用于珍珠奶茶 Capoo 攻击检测
+        const towerInfos = this.towers
+            .filter(t => t.isAlive())
+            .map(t => ({
+                id: t.id,
+                tilePos: t.getTilePosition(),
+                pixelPos: t.getPosition(),
+                isAlive: t.isAlive(),
+            }));
+
         for (const enemy of this.enemies) {
             if (!enemy.isAlive()) continue;
+
+            // 珍珠奶茶 Capoo 特殊处理
+            if (enemy.type === EnemyType.CAPOO_BUBBLETEA && enemy instanceof CapooBubbleTea) {
+                // 设置珍珠发射回调（如果尚未设置）
+                if (!enemy._pearlCallbackSet) {
+                    enemy.setOnFirePearls((data: BubblePearlData) => {
+                        this.fireBubblePearls(data);
+                    });
+                    enemy._pearlCallbackSet = true;
+                }
+
+                // 尝试攻击范围内的炮台
+                enemy.tryAttack(towerInfos);
+            }
+
+            // AK47 Capoo 特殊处理
+            if (enemy.type === EnemyType.CAPOO_AK47 && enemy instanceof CapooAK47) {
+                // 设置子弹发射回调（如果尚未设置）
+                if (!enemy._bulletCallbackSet) {
+                    enemy.setOnFireBullets((data: AK47BulletData) => {
+                        this.fireAK47Bullets(data);
+                    });
+                    enemy._bulletCallbackSet = true;
+                }
+
+                // 尝试攻击范围内的炮台
+                enemy.tryAttack(towerInfos);
+            }
 
             const reachedEnd = enemy.update(deltaTime);
 
@@ -754,6 +1117,9 @@ export class Game {
                 target.takeDamage(damage);
                 projectile.hit();
 
+                // 添加伤害飘字
+                this.addDamagePopup(damage, DamageType.PHYSICAL, target.getPosition());
+
                 console.log(`[游戏] 子弹命中敌人，造成 ${damage} 伤害`);
 
                 // 击杀奖励
@@ -785,13 +1151,16 @@ export class Game {
                     // 造成伤害
                     const damage = this.combatSystem.calculateDamage(
                         particle.getDamage(),
-                        DamageType.PHYSICAL,
+                        DamageType.MAGICAL, // 假设火焰是魔法伤害
                         enemy.getDefense(),
                         enemy.getMagicResist()
                     );
 
                     enemy.takeDamage(damage);
                     particle.hit();
+
+                    // 添加伤害飘字
+                    this.addDamagePopup(damage, DamageType.MAGICAL, enemy.getPosition());
 
                     // 击杀奖励
                     if (!enemy.isAlive()) {
@@ -812,7 +1181,15 @@ export class Game {
         // 清理死亡的敌人
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (!this.enemies[i].isAlive()) {
-                this.enemies[i].destroy();
+                const enemy = this.enemies[i];
+                // 创建死亡特效
+                this.spawnDeathEffect(enemy.getPosition(), 30, 0x2ecc71);
+                // 先从血条层移除该敌人的血条
+                const healthBar = enemy.getHealthBarContainer();
+                if (healthBar.parent) {
+                    healthBar.parent.removeChild(healthBar);
+                }
+                enemy.destroy();
                 this.enemies.splice(i, 1);
             }
         }
@@ -820,9 +1197,17 @@ export class Game {
         // 清理死亡的炮台
         for (let i = this.towers.length - 1; i >= 0; i--) {
             if (!this.towers[i].isAlive()) {
-                const tilePos = this.towers[i].getTilePosition();
+                const tower = this.towers[i];
+                const tilePos = tower.getTilePosition();
                 this.gameMap.setTowerOnTile(tilePos.x, tilePos.y, false);
-                this.towers[i].destroy();
+                // 创建死亡特效
+                this.spawnDeathEffect(tower.getPosition(), 40, 0x3498db);
+                // 先从血条层移除该炮台的血条
+                const healthBar = tower.getHealthBarContainer();
+                if (healthBar.parent) {
+                    healthBar.parent.removeChild(healthBar);
+                }
+                tower.destroy();
                 this.towers.splice(i, 1);
             }
         }
@@ -840,6 +1225,14 @@ export class Game {
             if (!this.flameParticles[i].isAlive()) {
                 this.flameParticles[i].destroy();
                 this.flameParticles.splice(i, 1);
+            }
+        }
+
+        // 清理消失的伤害飘字
+        for (let i = this.popups.length - 1; i >= 0; i--) {
+            if (!this.popups[i].isAlive()) {
+                this.popups[i].destroy();
+                this.popups.splice(i, 1);
             }
         }
     }
@@ -881,6 +1274,55 @@ export class Game {
         // 更新部署栏金币（用于禁用/启用单位按钮）
         if (this.deploymentBar) {
             this.deploymentBar.updateGold(this.gold);
+        }
+    }
+
+    /**
+     * 添加伤害飘字
+     * @param damage 伤害数值
+     * @param type 伤害类型
+     * @param position 弹出位置（像素坐标）
+     */
+    private addDamagePopup(damage: number, type: DamageType, position: Position): void {
+        const popup = new DamagePopup(damage, type, position);
+        this.popups.push(popup);
+        this.popupLayer.addChild(popup.getContainer());
+    }
+
+    /**
+     * 更新所有伤害飘字
+     * @param deltaTime 时间增量
+     */
+    private updateDamagePopups(deltaTime: number): void {
+        for (const popup of this.popups) {
+            popup.update(deltaTime);
+        }
+    }
+
+    /**
+     * 生成死亡特效
+     * @param position 死亡位置
+     * @param size 实体大小
+     * @param color 实体颜色
+     */
+    private spawnDeathEffect(position: Position, size: number, color: number): void {
+        const effect = new DeathEffect(position, size, color);
+        this.deathEffects.push(effect);
+        this.entityLayer.addChild(effect.getContainer());
+    }
+
+    /**
+     * 更新所有死亡特效
+     * @param deltaTime 时间增量
+     */
+    private updateDeathEffects(deltaTime: number): void {
+        for (let i = this.deathEffects.length - 1; i >= 0; i--) {
+            const effect = this.deathEffects[i];
+            effect.update(deltaTime);
+            if (!effect.isAlive()) {
+                effect.destroy();
+                this.deathEffects.splice(i, 1);
+            }
         }
     }
 
@@ -955,6 +1397,19 @@ export class Game {
         this.updateUI();
 
         console.log('[游戏] 游戏已重置');
+    }
+
+    /**
+     * 处理窗口缩放
+     * 重新居中地图和 UI
+     */
+    public onResize(): void {
+        this.centerMap();
+        // 重新设置部署栏位置
+        if (this.deploymentBar) {
+            this.deploymentBar.centerAtBottom(this.app.screen.width, this.app.screen.height);
+        }
+        console.log('[游戏] 窗口缩放，重新居中');
     }
 
     /**

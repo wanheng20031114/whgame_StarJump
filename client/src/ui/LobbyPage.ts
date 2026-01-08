@@ -5,6 +5,8 @@
  * 选择游戏模式（单人/多人）
  */
 
+import { AssetManager } from '../core/AssetManager';
+
 /**
  * 大厅页面类
  */
@@ -54,7 +56,10 @@ export class LobbyPage {
         const backBtn = document.createElement('button');
         backBtn.textContent = '← 返回主页';
         backBtn.className = 'btn btn-secondary';
-        backBtn.onclick = () => this.onBack?.();
+        backBtn.onclick = () => {
+            AssetManager.getInstance().playClickSound();
+            this.onBack?.();
+        };
         navbar.appendChild(backBtn);
 
         // 标题
@@ -136,7 +141,10 @@ export class LobbyPage {
                 card.style.transform = 'translateY(0)';
                 card.style.boxShadow = 'none';
             };
-            card.onclick = onClick;
+            card.onclick = () => {
+                AssetManager.getInstance().playClickSound();
+                onClick();
+            };
         }
 
         // 标题
@@ -192,6 +200,7 @@ export class LobbyPage {
       `;
             startBtn.onclick = (e) => {
                 e.stopPropagation();
+                AssetManager.getInstance().playClickSound();
                 onClick();
             };
             card.appendChild(startBtn);

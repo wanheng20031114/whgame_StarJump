@@ -19,9 +19,10 @@
  * - 1 攻击范围（只能攻击周围8格）
  */
 
-import { Graphics } from 'pixi.js';
-import { Position, TowerStats, TowerType } from '../types';
-import { Tower } from './Tower';
+import { Graphics, Sprite } from 'pixi.js';
+import { Position, TowerStats, TowerType } from '../../../types';
+import { Tower } from '../Tower';
+import { AssetManager } from '../../../core/AssetManager';
 
 /**
  * 喷火器攻击范围模板（周围 8 格）
@@ -43,7 +44,6 @@ const FLAMETHROWER_STATS: TowerStats = {
     magicResist: 5,
     attack: 5,         // 每个火焰粒子的伤害
     attackSpeed: 5,    // 每秒攻击5次
-    range: 1,          // 攻击范围1格（备用）
     rangePattern: FLAMETHROWER_RANGE_PATTERN, // 使用内部定义的模板
 };
 
@@ -66,6 +66,33 @@ export class FlameThrower extends Tower {
         // 使用深拷贝确保每个喷火器有独立的属性
         const stats = { ...FLAMETHROWER_STATS };
         super(id, TowerType.FLAMETHROWER, tilePos, stats);
+
+        // 初始化高清图片精灵
+        this.setupSprite();
+    }
+
+    /**
+     * 设置精灵图渲染
+     */
+    private setupSprite(): void {
+        const texture = AssetManager.getInstance().getTexture('tower_flamethrower');
+        if (texture) {
+            // 创建精灵图
+            const sprite = new Sprite(texture);
+
+            // 设置锚点到中心，方便对齐
+            sprite.anchor.set(0.5);
+
+            // 自动缩放到格子大小 (64x64)
+            sprite.width = 64;
+            sprite.height = 64;
+
+            // 将原来的占位图形隐藏
+            this.graphics.visible = false;
+
+            // 添加到显示容器中
+            this.container.addChild(sprite);
+        }
     }
 
     /**

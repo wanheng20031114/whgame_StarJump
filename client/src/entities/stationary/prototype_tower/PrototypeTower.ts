@@ -11,24 +11,37 @@
  * - 只能放置在高台上
  */
 
-import { Graphics } from 'pixi.js';
-import { Position, TowerStats, TowerType } from '../types';
-import { Tower } from './Tower';
+import { Graphics, Sprite } from 'pixi.js';
+import { Position, TowerStats, TowerType } from '../../../types';
+import { Tower } from '../Tower';
+import { AssetManager } from '../../../core/AssetManager';
 
 /**
  * 原型炮台攻击范围模板（半径为3的圆形/菱形）
  * 7x7 矩阵，炮台位于中心 (3,3)
  */
+// const PROTOTYPE_RANGE_PATTERN = [
+//     [0, 0, 0, 1, 0, 0, 0],
+//     [0, 0, 1, 1, 1, 0, 0],
+//     [0, 1, 1, 1, 1, 1, 0],
+//     [1, 1, 1, 1, 1, 1, 1], // 中心行
+//     [0, 1, 1, 1, 1, 1, 0],
+//     [0, 0, 1, 1, 1, 0, 0],
+//     [0, 0, 0, 1, 0, 0, 0],
+// ];
 const PROTOTYPE_RANGE_PATTERN = [
-    [0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0],
-    [1, 1, 1, 1, 1, 1, 1], // 中心行
-    [0, 1, 1, 1, 1, 1, 0],
-    [0, 0, 1, 1, 1, 0, 0],
-    [0, 0, 0, 1, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,],
 ];
-
 /**
  * 原型炮台默认属性
  */
@@ -37,9 +50,8 @@ const PROTOTYPE_TOWER_STATS: TowerStats = {
     maxHealth: 100,
     defense: 20,
     magicResist: 10,
-    attack: 10,
+    attack: 20,
     attackSpeed: 1,  // 每秒攻击1次
-    range: 3,        // 攻击范围半径3格（备用）
     rangePattern: PROTOTYPE_RANGE_PATTERN, // 使用内部定义的模板
 };
 
@@ -56,6 +68,33 @@ export class PrototypeTower extends Tower {
         // 使用深拷贝确保每个炮台有独立的属性
         const stats = { ...PROTOTYPE_TOWER_STATS };
         super(id, TowerType.PROTOTYPE, tilePos, stats);
+
+        // 初始化高清图片精灵
+        this.setupSprite();
+    }
+
+    /**
+     * 设置精灵图渲染
+     */
+    private setupSprite(): void {
+        const texture = AssetManager.getInstance().getTexture('tower_prototype');
+        if (texture) {
+            // 创建精灵图
+            const sprite = new Sprite(texture);
+
+            // 设置锚点到中心，方便对齐
+            sprite.anchor.set(0.5);
+
+            // 自动缩放到格子大小 (64x64)
+            sprite.width = 64;
+            sprite.height = 64;
+
+            // 将原来的占位图形隐藏
+            this.graphics.visible = false;
+
+            // 添加到显示容器中
+            this.container.addChild(sprite);
+        }
     }
 
     /**

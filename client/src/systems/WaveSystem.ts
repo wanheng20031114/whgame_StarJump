@@ -72,48 +72,104 @@ export class WaveSystem {
         // 初始化默认波次配置
         this.waves = this.createDefaultWaves();
     }
-
+    //临时函数。测试用
+    private test1(n: number) {
+        let su = [];
+        for (let i = 0; i < n; i++) {
+            su.push(
+                { type: EnemyType.CAPOO_AK47, delay: i * 500, gateIndex: 0 }
+            );
+        }
+        return su;
+    }
     /**
      * 创建默认波次配置
+     * 当前配置为单人模式 5 波挑战
      */
     private createDefaultWaves(): WaveConfig[] {
         return [
-            // 第1波：3个僵尸，间隔2秒
+            // ============================================================
+            // 第 1 波：入门（5 僵尸 + 2 Capoo）
+            // 总数：7 | 目标：熟悉基础操作
+            // ============================================================
             {
                 waveNumber: 1,
                 prepareTime: 3000,
-                enemies: [
-                    { type: EnemyType.ZOMBIE, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 4000, gateIndex: 0 },
-                ],
+                enemies: this.test1(80),
+                // enemies: [
+                //     { type: EnemyType.CAPOO_AK47, delay: 0, gateIndex: 0 },
+                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
+                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
+                //     
+                // ],
             },
-            // 第2波：5个僵尸，间隔1.5秒
+            // ============================================================
+            // 第 2 波：压制（8 僵尸 + 3 Capoo）
+            // 总数：11 | 目标：考验火力密度
+            // ============================================================
             {
                 waveNumber: 2,
                 prepareTime: 5000,
                 enemies: [
-                    { type: EnemyType.ZOMBIE, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 1500, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 3000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 4500, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 0, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1500, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 3000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1000, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 4000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 6000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 8000, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 4500, gateIndex: 0 },
                     { type: EnemyType.ZOMBIE, delay: 6000, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 7500, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 9000, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 10500, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 12000, gateIndex: 0 },
+                    { type: EnemyType.ZOMBIE, delay: 13500, gateIndex: 0 },
+                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 15000, gateIndex: 0 },
                 ],
             },
-            // 第3波：8个僵尸，间隔1秒
+            // ============================================================
+            // 第 3 波：急袭（10 僵尸 + 6 Capoo）
+            // 总数：16 | 目标：应对快速单位冲阵
+            // ============================================================
             {
                 waveNumber: 3,
                 prepareTime: 5000,
                 enemies: [
-                    { type: EnemyType.ZOMBIE, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 1000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 3000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 4000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 5000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 6000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 7000, gateIndex: 0 },
+                    // 先来一拨僵尸铺路
+                    ...Array(5).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 1000, gateIndex: 0 })),
+                    // 突然加速：Capoo 小队冲锋
+                    ...Array(6).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: 5000 + i * 800, gateIndex: 0 })),
+                    // 后续僵尸补足
+                    ...Array(5).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: 10000 + i * 1000, gateIndex: 0 })),
                 ],
+            },
+            // ============================================================
+            // 第 4 波：混合爆发（15 僵尸 + 8 Capoo）
+            // 总数：23 | 目标：综合防御考验
+            // ============================================================
+            {
+                waveNumber: 4,
+                prepareTime: 5000,
+                enemies: [
+                    // 僵尸与 Capoo 混合生成，制造持续压力
+                    ...Array(15).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 800, gateIndex: 0 })),
+                    ...Array(8).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: i * 1500, gateIndex: 0 })),
+                ].sort((a, b) => a.delay - b.delay), // 按延迟排序确保逻辑正确
+            },
+            // ============================================================
+            // 第 5 波：最终波次（20 僵尸 + 12 Capoo）
+            // 总数：32 | 目标：终极防线测试
+            // ============================================================
+            {
+                waveNumber: 5,
+                prepareTime: 8000,
+                enemies: [
+                    // 高频率生成敌军
+                    ...Array(20).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 600, gateIndex: 0 })),
+                    ...Array(12).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: 2000 + i * 1000, gateIndex: 0 })),
+                ].sort((a, b) => a.delay - b.delay),
             },
         ];
     }

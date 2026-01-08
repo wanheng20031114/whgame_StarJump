@@ -10,8 +10,9 @@
  * - 支持左键按住拖拽单位到地图
  */
 
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Sprite } from 'pixi.js';
 import { TowerType } from '../types';
+import { AssetManager } from '../core/AssetManager';
 
 /**
  * 可部署单位配置接口
@@ -122,6 +123,13 @@ export class DeploymentBar {
                 color: 0xff4500,
                 description: '近战范围攻击，攻击周围8格',
             },
+            {
+                type: TowerType.LASER,
+                name: '激光塔',
+                cost: 120,
+                color: 0xff3333,
+                description: '高伤害激光，每6秒攻击一次',
+            },
         ];
     }
 
@@ -171,11 +179,30 @@ export class DeploymentBar {
         iconBg.stroke({ color: unit.color, width: 2 });
         iconContainer.addChild(iconBg);
 
-        // 单位简化图标
-        const unitIcon = new Graphics();
-        unitIcon.circle(this.unitIconSize / 2, this.unitIconSize / 2, 15);
-        unitIcon.fill({ color: unit.color });
-        iconContainer.addChild(unitIcon);
+        // 获取对应纹理名称
+        let textureName = '';
+        if (unit.type === TowerType.PROTOTYPE) textureName = 'tower_prototype';
+        else if (unit.type === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
+        else if (unit.type === TowerType.LASER) textureName = 'tower_laser';
+
+        const texture = AssetManager.getInstance().getTexture(textureName);
+
+        if (texture) {
+            // 如果有高清纹理，则使用图片
+            const sprite = new Sprite(texture);
+            sprite.anchor.set(0.5);
+            sprite.x = this.unitIconSize / 2;
+            sprite.y = this.unitIconSize / 2;
+            sprite.width = this.unitIconSize - 8;  // 缩小一点适应边框
+            sprite.height = this.unitIconSize - 8;
+            iconContainer.addChild(sprite);
+        } else {
+            // 高清纹理不存在时，使用占位几何图形
+            const unitIcon = new Graphics();
+            unitIcon.circle(this.unitIconSize / 2, this.unitIconSize / 2, 15);
+            unitIcon.fill({ color: unit.color });
+            iconContainer.addChild(unitIcon);
+        }
 
         // 费用文本
         const costStyle = new TextStyle({
@@ -224,7 +251,7 @@ export class DeploymentBar {
         this.draggingUnitCost = unit.cost;
 
         // 创建拖拽预览
-        this.createDragPreview(unit.color);
+        this.createDragPreview(unit.type, unit.color);
         if (this.dragPreview) {
             this.dragPreview.x = startX;
             this.dragPreview.y = startY;
@@ -239,19 +266,37 @@ export class DeploymentBar {
     /**
      * 创建拖拽预览图形
      */
-    private createDragPreview(color: number): void {
+    private createDragPreview(unitType: TowerType, color: number): void {
         if (this.dragPreview) {
             this.dragPreview.destroy({ children: true });
         }
 
         this.dragPreview = new Container();
 
-        // 预览圆形
-        const previewCircle = new Graphics();
-        previewCircle.circle(0, 0, 25);
-        previewCircle.fill({ color, alpha: 0.7 });
-        previewCircle.stroke({ color: 0xffffff, width: 2, alpha: 0.8 });
-        this.dragPreview.addChild(previewCircle);
+        // 尝试获取对应纹理
+        let textureName = '';
+        if (unitType === TowerType.PROTOTYPE) textureName = 'tower_prototype';
+        else if (unitType === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
+        else if (unitType === TowerType.LASER) textureName = 'tower_laser';
+
+        const texture = AssetManager.getInstance().getTexture(textureName);
+
+        if (texture) {
+            // 使用图片预览
+            const sprite = new Sprite(texture);
+            sprite.anchor.set(0.5);
+            sprite.width = 64;  // 预览图稍微大一点，显示真实格子比例
+            sprite.height = 64;
+            sprite.alpha = 0.7; // 拖拽时半透明
+            this.dragPreview.addChild(sprite);
+        } else {
+            // 使用几何预览
+            const previewCircle = new Graphics();
+            previewCircle.circle(0, 0, 25);
+            previewCircle.fill({ color, alpha: 0.7 });
+            previewCircle.stroke({ color: 0xffffff, width: 2, alpha: 0.8 });
+            this.dragPreview.addChild(previewCircle);
+        }
 
         // 添加到舞台（需要在setCanvas后才能添加）
         if (this.container.parent) {

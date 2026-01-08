@@ -155,8 +155,6 @@ export interface TowerStats {
     attack: number;
     /** 攻击速度（每秒攻击次数） */
     attackSpeed: number;
-    /** 攻击范围（格数，用于半径计算） */
-    range: number;
     /** 攻击范围模板（二维数组，1表示在范围内，0或中心标记表示不在） */
     rangePattern?: number[][];
 }
@@ -181,6 +179,7 @@ export interface Tower extends Entity {
 export enum TowerType {
     PROTOTYPE = 'prototype',     // 原型炮台
     FLAMETHROWER = 'flamethrower', // 喷火器
+    LASER = 'laser',             // 激光塔
 }
 
 /**
@@ -191,6 +190,8 @@ export interface EnemyStats {
     health: number;
     /** 最大生命值 */
     maxHealth: number;
+    /** 攻击力 */
+    attack: number;
     /** 物理防御力 */
     defense: number;
     /** 法术抗性 */
@@ -218,6 +219,9 @@ export interface Enemy extends Entity {
  */
 export enum EnemyType {
     ZOMBIE = 'zombie', // 僵尸
+    CAPOO_SWORDSMAN = 'capoo_swordsman', // Capoo 剑士
+    CAPOO_BUBBLETEA = 'capoo_bubbletea', // Capoo 珍珠奶茶
+    CAPOO_AK47 = 'capoo_ak47', // Capoo AK47
 }
 
 /**
