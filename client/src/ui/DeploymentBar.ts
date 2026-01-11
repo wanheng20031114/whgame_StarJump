@@ -76,7 +76,7 @@ export class DeploymentBar {
     private dragPreview: Container | null = null;
 
     /** 部署栏宽度 */
-    private readonly barWidth: number = 400;
+    private readonly barWidth: number = 800;
 
     /** 部署栏高度 */
     private readonly barHeight: number = 80;
@@ -113,22 +113,36 @@ export class DeploymentBar {
                 type: TowerType.PROTOTYPE,
                 name: '原型炮台',
                 cost: 50,
-                color: 0x3498db,
+                color: 0x346edb,
                 description: '远程单体攻击，攻击范围3格',
             },
             {
                 type: TowerType.FLAMETHROWER,
                 name: '喷火器',
-                cost: 40,
-                color: 0xff4500,
+                cost: 80,
+                color: 0x346edb,
                 description: '近战范围攻击，攻击周围8格',
             },
             {
                 type: TowerType.LASER,
                 name: '激光塔',
                 cost: 120,
-                color: 0xff3333,
+                color: 0x346edb,
                 description: '高伤害激光，每6秒攻击一次',
+            },
+            {
+                type: TowerType.ANTIAIRCRAFT,
+                name: '防空塔',
+                cost: 150,
+                color: 0x346edb,
+                description: '远程 AOE 攻击，近处有盲区',
+            },
+            {
+                type: TowerType.GATLING,
+                name: '加特林塔',
+                cost: 180,
+                color: 0x346edb,
+                description: '高速连续射击，每秒10发',
             },
         ];
     }
@@ -184,6 +198,8 @@ export class DeploymentBar {
         if (unit.type === TowerType.PROTOTYPE) textureName = 'tower_prototype';
         else if (unit.type === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
         else if (unit.type === TowerType.LASER) textureName = 'tower_laser';
+        else if (unit.type === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
+        else if (unit.type === TowerType.GATLING) textureName = 'tower_gatling';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 
@@ -278,6 +294,8 @@ export class DeploymentBar {
         if (unitType === TowerType.PROTOTYPE) textureName = 'tower_prototype';
         else if (unitType === TowerType.FLAMETHROWER) textureName = 'tower_flamethrower';
         else if (unitType === TowerType.LASER) textureName = 'tower_laser';
+        else if (unitType === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
+        else if (unitType === TowerType.GATLING) textureName = 'tower_gatling';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 

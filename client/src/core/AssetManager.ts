@@ -22,6 +22,8 @@ import laserTowerFireUrl from '../sound/LaserTower_fire.m4a';
 import capooBubbleTeaFireUrl from '../sound/capoo_BubbleTea_fire.m4a';
 // @ts-ignore
 import capooAK47FireUrl from '../sound/capoo_ak47_fire.m4a';
+// @ts-ignore
+import antiaircraftTowerFireUrl from '../sound/AntiaircraftTower_fire.m4a';
 
 // 导入高清图片素材
 // @ts-ignore
@@ -49,6 +51,18 @@ import capooBubbleTeaSpriteImg from '../assets/capoos/capoo_BubbleTea/capoo_Bubb
 import capooAK47Img from '../assets/capoos/capoo_ak47/capoo_ak47.png';
 // @ts-ignore
 import capooAK47SpriteImg from '../assets/capoos/capoo_ak47/capoo_ak47_sprite.png';
+
+// 防空塔资源
+// @ts-ignore
+import antiaircraftTowerImg from '../assets/towers/AntiaircraftTower/AntiaircraftTower.png';
+// @ts-ignore
+import antiaircraftTowerSpriteImg from '../assets/towers/AntiaircraftTower/AntiaircraftTower_sprite.png';
+
+// 加特林塔资源
+// @ts-ignore
+import gatlingTowerImg from '../assets/towers/GatlingTower/GatlingTower.png';
+// @ts-ignore
+import gatlingTowerSpriteImg from '../assets/towers/GatlingTower/GatlingTower_sprite.png';
 
 /**
  * 资源管理器类
@@ -112,11 +126,21 @@ export class AssetManager {
             Assets.add({ alias: 'capoo_ak47', src: capooAK47Img });
             Assets.add({ alias: 'capoo_ak47_attack_sprite', src: capooAK47SpriteImg });
 
+            // 防空塔资源
+            Assets.add({ alias: 'tower_antiaircraft', src: antiaircraftTowerImg });
+            Assets.add({ alias: 'antiaircraft_sprite', src: antiaircraftTowerSpriteImg });
+
+            // 加特林塔资源
+            Assets.add({ alias: 'tower_gatling', src: gatlingTowerImg });
+            Assets.add({ alias: 'gatling_sprite', src: gatlingTowerSpriteImg });
+
             const textures = await Assets.load([
                 'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
                 'tower_laser', 'laser_sprite',
                 'capoo_bubbletea', 'capoo_bubbletea_attack_sprite',
                 'capoo_ak47', 'capoo_ak47_attack_sprite',
+                'tower_antiaircraft', 'antiaircraft_sprite',
+                'tower_gatling', 'gatling_sprite',
             ]);
 
             // 2. 存入本地纹理缓存
@@ -135,6 +159,14 @@ export class AssetManager {
             // AK47 Capoo 纹理
             this.textures.set('capoo_ak47', textures.capoo_ak47);
             this.textures.set('capoo_ak47_attack_sprite', textures.capoo_ak47_attack_sprite);
+
+            // 防空塔纹理
+            this.textures.set('tower_antiaircraft', textures.tower_antiaircraft);
+            this.textures.set('antiaircraft_sprite', textures.antiaircraft_sprite);
+
+            // 加特林塔纹理
+            this.textures.set('tower_gatling', textures.tower_gatling);
+            this.textures.set('gatling_sprite', textures.gatling_sprite);
 
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();
@@ -209,12 +241,18 @@ export class AssetManager {
     public playPrototypeTowerFireSound(): void {
         this.playSound(prototypeTowerFireUrl, 0.1);
     }
+    /**
+      * 播放原型炮台（给加特林使用）开火音效
+      */
+    public playGatlingTowerFireSound(): void {
+        this.playSound(prototypeTowerFireUrl, 0.02);
+    }
 
     /**
      * 播放炮台放置成功音效
      */
     public playPlantingSound(): void {
-        this.playSound(plantingSoundUrl, 0.5);
+        this.playSound(plantingSoundUrl, 0.6);
     }
 
     /**
@@ -236,6 +274,13 @@ export class AssetManager {
      */
     public playCapooAK47FireSound(): void {
         this.playSound(capooAK47FireUrl, 0.26);
+    }
+
+    /**
+     * 播放防空塔开火音效
+     */
+    public playAntiaircraftTowerFireSound(): void {
+        this.playSound(antiaircraftTowerFireUrl, 0.25);
     }
 
     /**
