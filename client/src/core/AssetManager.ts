@@ -280,7 +280,7 @@ export class AssetManager {
      * 播放防空塔开火音效
      */
     public playAntiaircraftTowerFireSound(): void {
-        this.playSound(antiaircraftTowerFireUrl, 0.25);
+        this.playSound(antiaircraftTowerFireUrl, 0.20);
     }
 
     /**
