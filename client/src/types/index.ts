@@ -180,6 +180,8 @@ export enum TowerType {
     PROTOTYPE = 'prototype',     // 原型炮台
     FLAMETHROWER = 'flamethrower', // 喷火器
     LASER = 'laser',             // 激光塔
+    ANTIAIRCRAFT = 'antiaircraft', // 防空塔
+    GATLING = 'gatling',         // 加特林塔
 }
 
 /**

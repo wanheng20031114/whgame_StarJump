@@ -47,7 +47,7 @@ export interface AK47BulletData {
 const AK47_STATS: EnemyStats = {
     health: 100,
     maxHealth: 100,
-    attack: 20,  // 每发子弹伤害
+    attack: 25,  // 每发子弹伤害
     defense: 0,
     magicResist: 0,
     moveSpeed: 0.5, // 每秒移动0.5格

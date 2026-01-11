@@ -36,6 +36,10 @@ import { DeploymentBar } from '../ui/DeploymentBar';
 import { RangeOverlay } from '../ui/RangeOverlay';
 import { TowerInfoPanel } from '../ui/TowerInfoPanel';
 import { DeathEffect } from '../effects/DeathEffect';
+import { AntiaircraftTower, AntiaircraftFireData } from '../entities/stationary/antiaircraft_tower/AntiaircraftTower';
+import { ExplosionEffect } from '../entities/effects/ExplosionEffect';
+import { GatlingTower } from '../entities/stationary/gatling_tower/GatlingTower';
+import { GatlingBullet } from '../entities/stationary/gatling_tower/GatlingBullet';
 
 /**
  * 游戏主类
@@ -100,6 +104,12 @@ export class Game {
 
     /** AK47 子弹列表（AK47 Capoo攻击） */
     private ak47Bullets: import('../entities/movable/capoo_ak47/AK47Bullet').AK47Bullet[] = [];
+
+    /** 爆炸效果列表（防空塔攻击） */
+    private explosionEffects: ExplosionEffect[] = [];
+
+    /** 加特林子弹列表（加特林塔攻击） */
+    private gatlingBullets: GatlingBullet[] = [];
 
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
@@ -499,6 +509,12 @@ export class Game {
             default:
                 tower = new PrototypeTower(id, { x, y });
                 break;
+            case TowerType.ANTIAIRCRAFT:
+                tower = new AntiaircraftTower(id, { x, y });
+                break;
+            case TowerType.GATLING:
+                tower = new GatlingTower(id, { x, y });
+                break;
         }
 
         this.towers.push(tower);
@@ -729,8 +745,14 @@ export class Game {
         // 更新 AK47 子弹（AK47 Capoo攻击）
         this.updateAK47Bullets(clampedDelta);
 
+        // 更新加特林子弹（加特林塔攻击）
+        this.updateGatlingBullets(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
+
+        // 更新爆炸效果（防空塔攻击）
+        this.updateExplosionEffects(clampedDelta);
 
         // 更新死亡特效
         this.updateDeathEffects(clampedDelta);
@@ -781,12 +803,26 @@ export class Game {
                 }
             }
 
+            // 对于防空塔，需要设置开火回调
+            if (tower.type === TowerType.ANTIAIRCRAFT && tower instanceof AntiaircraftTower) {
+                if (!tower._antiaircraftCallbackSet) {
+                    tower.setOnFire((data: AntiaircraftFireData) => {
+                        this.handleExplosion(data);
+                    });
+                    tower._antiaircraftCallbackSet = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             if (result.shouldFire && result.targetId) {
-                // 对于普通炮台，发射子弹（喷火器和激光塔已通过回调处理）
-                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER) {
-                    this.fireProjectile(tower, result.targetId);
+                // 对于普通炮台，发射子弹（喷火器、激光塔和防空塔已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER && tower.type !== TowerType.ANTIAIRCRAFT) {
+                    if (tower.type === TowerType.GATLING) {
+                        this.fireGatlingBullet(tower, result.targetId);
+                    } else {
+                        this.fireProjectile(tower, result.targetId);
+                    }
                 }
             }
         }
@@ -836,6 +872,31 @@ export class Game {
     }
 
     /**
+     * 发射加特林子弹（加特林塔攻击）
+     * @param tower 发射者炮塔
+     * @param targetId 目标ID
+     */
+    private fireGatlingBullet(tower: Tower, targetId: string): void {
+        const id = `gatling_${this.entityIdCounter++}`;
+        // 从炮塔左上角（炮口位置）发射
+        const towerPos = tower.getPosition();
+
+        const startPos = {
+            x: towerPos.x + 23,
+            y: towerPos.y - 13,
+        };
+        const damage = tower.getAttack();
+        const speed = 600; // 更快的速度
+
+        const bullet = new GatlingBullet(id, startPos, damage, speed, targetId, tower.id);
+        this.gatlingBullets.push(bullet);
+        this.projectileLayer.addChild(bullet.getContainer());
+
+        // 播放开火音效（使用原型炮台音效）
+        AssetManager.getInstance().playGatlingTowerFireSound();
+    }
+
+    /**
      * 发射激光（激光塔攻击）
      * @param data 激光发射数据
      */
@@ -876,6 +937,65 @@ export class Game {
     }
 
     /**
+     * 处理爆炸（防空塔攻击）
+     * @param data 爆炸数据
+     */
+    private handleExplosion(data: AntiaircraftFireData): void {
+        // 创建爆炸视觉效果（半径 96 像素）
+        const explosion = new ExplosionEffect(data.position, 96);
+        this.explosionEffects.push(explosion);
+        this.projectileLayer.addChild(explosion.getContainer());
+
+        // 播放防空塔开火音效
+        AssetManager.getInstance().playAntiaircraftTowerFireSound();
+
+        // 计算 AOE 伤害
+        let hitCount = 0;
+        for (const enemy of this.enemies) {
+            if (!enemy.isAlive()) continue;
+
+            const enemyPos = enemy.getPosition();
+            const dx = enemyPos.x - data.position.x;
+            const dy = enemyPos.y - data.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 检查敌人在哪个伤害层
+            let damagePercent = 0;
+            for (const layer of data.layers) {
+                if (distance <= layer.radius) {
+                    damagePercent = layer.damagePercent;
+                    break; // 取最内层的伤害
+                }
+            }
+
+            if (damagePercent > 0) {
+                const rawDamage = data.baseDamage * damagePercent;
+                const finalDamage = this.combatSystem.calculateDamage(
+                    rawDamage,
+                    DamageType.PHYSICAL,
+                    enemy.getDefense(),
+                    enemy.getMagicResist()
+                );
+                enemy.takeDamage(finalDamage);
+                hitCount++;
+
+                // 添加伤害飘字
+                this.addDamagePopup(finalDamage, DamageType.PHYSICAL, enemyPos);
+
+                // 击杀奖励
+                if (!enemy.isAlive()) {
+                    this.gold += 10;
+                    this.updateUI();
+                }
+            }
+        }
+
+        if (hitCount > 0) {
+            console.log(`[防空塔] 爆炸命中 ${hitCount} 个敌人`);
+        }
+    }
+
+    /**
      * 更新激光射线
      */
     private updateLaserBeams(deltaTime: number): void {
@@ -885,6 +1005,71 @@ export class Game {
             if (!beam.isAlive()) {
                 beam.destroy();
                 this.laserBeams.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 更新加特林子弹（加特林塔攻击）
+     */
+    private updateGatlingBullets(deltaTime: number): void {
+        for (let i = this.gatlingBullets.length - 1; i >= 0; i--) {
+            const bullet = this.gatlingBullets[i];
+
+            // 更新目标位置（追踪敌人）
+            const target = this.enemies.find(e => e.id === bullet.getTargetId() && e.isAlive());
+            if (target) {
+                bullet.updateTargetPosition(target.getPosition());
+            } else {
+                // 目标已死亡或不存在，销毁子弹
+                bullet.destroy();
+                this.gatlingBullets.splice(i, 1);
+                continue;
+            }
+
+            // 更新子弹
+            const hit = bullet.update(deltaTime);
+
+            if (hit && target) {
+                // 命中，造成伤害
+                const finalDamage = this.combatSystem.calculateDamage(
+                    bullet.getDamage(),
+                    DamageType.PHYSICAL,
+                    target.getDefense(),
+                    target.getMagicResist()
+                );
+                target.takeDamage(finalDamage);
+
+                // 添加伤害飘字
+                this.addDamagePopup(finalDamage, DamageType.PHYSICAL, target.getPosition());
+
+                // 击杀奖励
+                if (!target.isAlive()) {
+                    this.gold += 10;
+                    this.updateUI();
+                }
+
+                // 销毁子弹
+                bullet.destroy();
+                this.gatlingBullets.splice(i, 1);
+            } else if (!bullet.isAlive()) {
+                // 子弹失效（目标丢失等）
+                bullet.destroy();
+                this.gatlingBullets.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 更新爆炸效果（防空塔攻击）
+     */
+    private updateExplosionEffects(deltaTime: number): void {
+        for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+            const explosion = this.explosionEffects[i];
+            explosion.update(deltaTime);
+            if (!explosion.isAlive()) {
+                explosion.destroy();
+                this.explosionEffects.splice(i, 1);
             }
         }
     }

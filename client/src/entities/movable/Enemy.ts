@@ -113,8 +113,13 @@ export abstract class Enemy {
         healthBar.rect(-barWidth / 2, -30, barWidth, barHeight);
         healthBar.fill({ color: 0x000000 });
 
-        // 生命值（红色）
-        const healthColor = healthPercent > 0.5 ? 0xe74c3c : healthPercent > 0.25 ? 0xf39c12 : 0xc0392b;
+        // 生命值颜色：满血鲜红，血越少越深红
+        // 鲜红 0xff3333 → 深红 0x8b0000
+        const clampedPercent = Math.max(0, Math.min(1, healthPercent));
+        const r = Math.floor(139 + clampedPercent * 116); // 139 → 255
+        const g = Math.floor(clampedPercent * 51);        // 0 → 51
+        const b = Math.floor(clampedPercent * 51);        // 0 → 51
+        const healthColor = (r << 16) | (g << 8) | b;
         healthBar.rect(-barWidth / 2, -30, barWidth * healthPercent, barHeight);
         healthBar.fill({ color: healthColor });
 

@@ -56,8 +56,8 @@ const LASER_RANGE_PATTERN = [
  * 激光塔默认属性
  */
 const LASER_STATS: TowerStats = {
-    health: 120,
-    maxHealth: 120,
+    health: 1200,
+    maxHealth: 1200,
     defense: 10,
     magicResist: 20,
     attack: 80,

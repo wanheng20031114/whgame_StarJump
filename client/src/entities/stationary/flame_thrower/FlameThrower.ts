@@ -38,11 +38,11 @@ const FLAMETHROWER_RANGE_PATTERN = [
  * 喷火器默认属性
  */
 const FLAMETHROWER_STATS: TowerStats = {
-    health: 80,
-    maxHealth: 80,
-    defense: 15,
-    magicResist: 5,
-    attack: 5,         // 每个火焰粒子的伤害
+    health: 3000,
+    maxHealth: 3000,
+    defense: 25,
+    magicResist: 20,
+    attack: 3,         // 每个火焰粒子的伤害
     attackSpeed: 5,    // 每秒攻击5次
     rangePattern: FLAMETHROWER_RANGE_PATTERN, // 使用内部定义的模板
 };
