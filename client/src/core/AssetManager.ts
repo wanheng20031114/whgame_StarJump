@@ -70,6 +70,14 @@ import guardTowerImg from '../assets/towers/GuardTower/GuardTower.png';
 // @ts-ignore
 import guardTowerSpriteImg from '../assets/towers/GuardTower/GuardTower_sprite.png';
 
+// 环境/地形贴图
+// @ts-ignore
+import grassImg from '../assets/env/Grass1.png';
+// @ts-ignore
+import flowerImg from '../assets/env/Flower1.png';
+// @ts-ignore
+import highPlatformImg from '../assets/env/HighPlatform1.png';
+
 /**
  * 资源管理器类
  * 单例模式，全局统一管理游戏资源
@@ -144,6 +152,11 @@ export class AssetManager {
             Assets.add({ alias: 'tower_guard', src: guardTowerImg });
             Assets.add({ alias: 'guard_sprite', src: guardTowerSpriteImg });
 
+            // 地形贴图
+            Assets.add({ alias: 'env_grass', src: grassImg });
+            Assets.add({ alias: 'env_flower', src: flowerImg });
+            Assets.add({ alias: 'env_platform', src: highPlatformImg });
+
             const textures = await Assets.load([
                 'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
                 'tower_laser', 'laser_sprite',
@@ -152,6 +165,7 @@ export class AssetManager {
                 'tower_antiaircraft', 'antiaircraft_sprite',
                 'tower_gatling', 'gatling_sprite',
                 'tower_guard', 'guard_sprite',
+                'env_grass', 'env_flower', 'env_platform',
             ]);
 
             // 2. 存入本地纹理缓存
@@ -182,6 +196,11 @@ export class AssetManager {
             // 近卫塔纹理
             this.textures.set('tower_guard', textures.tower_guard);
             this.textures.set('guard_sprite', textures.guard_sprite);
+
+            // 地形纹理
+            this.textures.set('env_grass', textures.env_grass);
+            this.textures.set('env_flower', textures.env_flower);
+            this.textures.set('env_platform', textures.env_platform);
 
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();

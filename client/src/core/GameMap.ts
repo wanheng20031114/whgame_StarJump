@@ -9,9 +9,10 @@
  * - 蓝门（BLUE_GATE）：我方基地，敌人终点
  */
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { TileType, MapConfig, Position, Tile, MAP_CHAR_TO_TYPE } from '../types';
 import { DEFAULT_MAP_DATA, MapDataConfig } from '../data/MapData';
+import { AssetManager } from './AssetManager';
 
 /**
  * 地图系统类
@@ -28,7 +29,7 @@ export class GameMap {
     private container: Container;
 
     /** 格子图形对象缓存 */
-    private tileGraphics: Graphics[][] = [];
+    private tileGraphics: Container[][] = [];
 
     /** 格子大小（像素） */
     public readonly tileSize: number = 64;
@@ -150,79 +151,84 @@ export class GameMap {
      * 创建单个格子的图形
      * @param tile 格子数据
      */
-    private createTileGraphics(tile: Tile): Graphics {
-        const graphics = new Graphics();
+    private createTileGraphics(tile: Tile): Container {
+        const tileContainer = new Container();
+        const assetManager = AssetManager.getInstance();
 
-        // 根据格子类型设置颜色
-        let color: number;
-        let borderColor: number = 0x333333;
+        // 根据格子类型选择贴图或颜色
+        let textureKey: string | null = null;
 
         switch (tile.type) {
             case TileType.GROUND:
-                // 地面：深棕色
-                color = 0x4a3728;
+                textureKey = 'env_grass';
                 break;
             case TileType.PLATFORM:
-                // 高台：深灰蓝色
-                color = 0x2c3e50;
-                borderColor = 0x3498db;
-                break;
-            case TileType.RED_GATE:
-                // 红门：红色
-                color = 0xe74c3c;
-                borderColor = 0xc0392b;
-                break;
-            case TileType.BLUE_GATE:
-                // 蓝门：蓝色
-                color = 0x3498db;
-                borderColor = 0x2980b9;
+                textureKey = 'env_platform';
                 break;
             case TileType.OBSTACLE:
-                // 障碍物：深黑色
-                color = 0x1a1a1a;
-                borderColor = 0x000000;
+                textureKey = 'env_flower';
                 break;
+            case TileType.RED_GATE:
+            case TileType.BLUE_GATE:
             default:
-                color = 0x333333;
+                textureKey = null; // 使用图形绘制
         }
 
-        // 绘制格子背景
-        graphics.rect(0, 0, this.tileSize, this.tileSize);
-        graphics.fill({ color });
+        // 优先使用贴图
+        const texture = textureKey ? assetManager.getTexture(textureKey) : null;
+        if (texture) {
+            const sprite = new Sprite(texture);
+            sprite.width = this.tileSize;
+            sprite.height = this.tileSize;
+            tileContainer.addChild(sprite);
+        } else {
+            // 回退到图形绘制
+            const graphics = new Graphics();
+            let color: number;
+            let borderColor: number = 0x333333;
 
-        // 绘制边框
-        graphics.rect(0, 0, this.tileSize, this.tileSize);
-        graphics.stroke({ color: borderColor, width: 1 });
+            switch (tile.type) {
+                case TileType.RED_GATE:
+                    color = 0xe74c3c;
+                    borderColor = 0xc0392b;
+                    break;
+                case TileType.BLUE_GATE:
+                    color = 0x3498db;
+                    borderColor = 0x2980b9;
+                    break;
+                default:
+                    color = 0x333333;
+            }
 
-        // 为高台添加特殊标记
-        if (tile.type === TileType.PLATFORM) {
-            // 绘制小方块表示高台
-            const padding = 8;
-            graphics.rect(padding, padding, this.tileSize - padding * 2, this.tileSize - padding * 2);
-            graphics.stroke({ color: 0x3498db, width: 2 });
-        }
+            graphics.rect(0, 0, this.tileSize, this.tileSize);
+            graphics.fill({ color });
+            graphics.rect(0, 0, this.tileSize, this.tileSize);
+            graphics.stroke({ color: borderColor, width: 1 });
 
-        // 为红门添加箭头标记（指向右边）
-        if (tile.type === TileType.RED_GATE) {
-            const centerX = this.tileSize / 2;
-            const centerY = this.tileSize / 2;
-            graphics.moveTo(centerX - 10, centerY - 10);
-            graphics.lineTo(centerX + 10, centerY);
-            graphics.lineTo(centerX - 10, centerY + 10);
-            graphics.stroke({ color: 0xffffff, width: 3 });
-        }
+            // 为红门添加箭头标记
+            if (tile.type === TileType.RED_GATE) {
+                const centerX = this.tileSize / 2;
+                const centerY = this.tileSize / 2;
+                graphics.moveTo(centerX - 10, centerY - 10);
+                graphics.lineTo(centerX + 10, centerY);
+                graphics.lineTo(centerX - 10, centerY + 10);
+                graphics.stroke({ color: 0xffffff, width: 3 });
+            }
 
-        // 为蓝门添加圆形标记
-        if (tile.type === TileType.BLUE_GATE) {
-            graphics.circle(this.tileSize / 2, this.tileSize / 2, 15);
-            graphics.stroke({ color: 0xffffff, width: 3 });
+            // 为蓝门添加圆形标记
+            if (tile.type === TileType.BLUE_GATE) {
+                graphics.circle(this.tileSize / 2, this.tileSize / 2, 15);
+                graphics.stroke({ color: 0xffffff, width: 3 });
+            }
+
+            tileContainer.addChild(graphics);
         }
 
         // 设置交互属性
-        graphics.eventMode = 'static';
-        graphics.cursor = tile.type === TileType.PLATFORM ? 'pointer' : 'default';
+        tileContainer.eventMode = 'static';
+        tileContainer.cursor = tile.type === TileType.PLATFORM || tile.type === TileType.GROUND ? 'pointer' : 'default';
 
-        return graphics;
+        return tileContainer;
     }
 
     /**
@@ -410,7 +416,7 @@ export class GameMap {
      * @param x 格子X坐标
      * @param y 格子Y坐标
      */
-    public getTileGraphics(x: number, y: number): Graphics | null {
+    public getTileGraphics(x: number, y: number): Container | null {
         if (x < 0 || x >= this.config.width || y < 0 || y >= this.config.height) {
             return null;
         }
