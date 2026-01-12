@@ -262,16 +262,8 @@ export class GameMap {
 
         tile.hasTower = hasTower;
 
-        // 更新格子视觉
-        const graphics = this.tileGraphics[y][x];
-        if (hasTower) {
-            // 标记已放置炮台的格子
-            graphics.rect(4, 4, this.tileSize - 8, this.tileSize - 8);
-            // 地面炮塔用蓝色，高台炮塔用绿色
-            const color = isGroundTower && tile.type === TileType.GROUND ? 0x3498db : 0x27ae60;
-            graphics.fill({ color, alpha: 0.5 });
-        } else {
-            // 移除炮台时，重绘格子以清除标记
+        // 移除炮台时，重绘格子以清除任何残留标记
+        if (!hasTower) {
             this.redrawTile(x, y);
         }
 
