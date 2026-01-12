@@ -217,6 +217,9 @@ export class Game {
         const assetManager = AssetManager.getInstance();
         await assetManager.loadAssets();
 
+        // 资源加载完成后渲染地图（使用贴图）
+        this.gameMap.render();
+
         // 创建UI
         this.createUI();
 

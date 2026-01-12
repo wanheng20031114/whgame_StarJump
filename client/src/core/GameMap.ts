@@ -50,8 +50,7 @@ export class GameMap {
         // 初始化格子数据
         this.tiles = this.initializeTiles();
 
-        // 渲染地图
-        this.render();
+        // 注意：渲染需要在资源加载完成后调用 render() 方法
     }
 
     /**
@@ -120,9 +119,9 @@ export class GameMap {
     }
 
     /**
-     * 渲染地图
+     * 渲染地图（需要在资源加载完成后调用）
      */
-    private render(): void {
+    public render(): void {
         // 清空之前的渲染
         this.container.removeChildren();
         this.tileGraphics = [];
