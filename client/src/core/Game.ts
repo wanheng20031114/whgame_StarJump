@@ -459,8 +459,12 @@ export class Game {
         const tileX = Math.floor(mapX / 64);
         const tileY = Math.floor(mapY / 64);
 
-        // 检查是否可以放置
-        if (!this.gameMap.canPlaceTower(tileX, tileY)) {
+        // 检查是否可以放置（近卫塔可以放在地面）
+        const canPlace = this.draggingTowerType === TowerType.GUARD
+            ? this.gameMap.canPlaceGuardTower(tileX, tileY)
+            : this.gameMap.canPlaceTower(tileX, tileY);
+
+        if (!canPlace) {
             console.log('[游戏] 无法在此位置部署');
             this.draggingTowerType = null;
             this.draggingTowerCost = 0;
@@ -534,7 +538,9 @@ export class Game {
         });
 
         this.entityLayer.addChild(container);
-        this.gameMap.setTowerOnTile(x, y, true);
+        // 近卫塔可放置在地面，不阻挡敌人
+        const isGroundTower = towerType === TowerType.GUARD;
+        this.gameMap.setTowerOnTile(x, y, true, isGroundTower);
 
         // 将炮台血条添加到独立的血条层
         this.healthBarLayer.addChild(tower.getHealthBarContainer());

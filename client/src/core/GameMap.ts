@@ -242,14 +242,21 @@ export class GameMap {
      * @param x 格子X坐标
      * @param y 格子Y坐标
      * @param hasTower 是否有炮台
+     * @param isGroundTower 是否是地面炮塔（如近卫塔），不阻挡寻路
      */
-    public setTowerOnTile(x: number, y: number, hasTower: boolean): boolean {
+    public setTowerOnTile(x: number, y: number, hasTower: boolean, isGroundTower: boolean = false): boolean {
         const tile = this.getTile(x, y);
         if (!tile) return false;
 
-        // 只有高台才能放置炮台
-        if (tile.type !== TileType.PLATFORM) {
-            console.warn(`[地图系统] 无法在非高台格子 (${x}, ${y}) 放置炮台`);
+        // 检查格子类型
+        if (tile.type !== TileType.PLATFORM && tile.type !== TileType.GROUND) {
+            console.warn(`[地图系统] 无法在格子 (${x}, ${y}) 放置炮台`);
+            return false;
+        }
+
+        // 地面炮塔只能放在地面格子
+        if (isGroundTower && tile.type !== TileType.GROUND && tile.type !== TileType.PLATFORM) {
+            console.warn(`[地图系统] 近卫塔不能放在此格子类型`);
             return false;
         }
 
@@ -258,11 +265,13 @@ export class GameMap {
         // 更新格子视觉
         const graphics = this.tileGraphics[y][x];
         if (hasTower) {
-            // 标记已放置炮台的格子（绿色半透明覆盖）
+            // 标记已放置炮台的格子
             graphics.rect(4, 4, this.tileSize - 8, this.tileSize - 8);
-            graphics.fill({ color: 0x27ae60, alpha: 0.5 });
+            // 地面炮塔用蓝色，高台炮塔用绿色
+            const color = isGroundTower && tile.type === TileType.GROUND ? 0x3498db : 0x27ae60;
+            graphics.fill({ color, alpha: 0.5 });
         } else {
-            // 移除炮台时，重绘格子以清除绿色标记
+            // 移除炮台时，重绘格子以清除标记
             this.redrawTile(x, y);
         }
 
@@ -329,6 +338,20 @@ export class GameMap {
 
         // 只有高台且没有炮台才能放置
         return tile.type === TileType.PLATFORM && !tile.hasTower;
+    }
+
+    /**
+     * 检查格子是否可放置近卫塔（可放在地面或高台）
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public canPlaceGuardTower(x: number, y: number): boolean {
+        const tile = this.getTile(x, y);
+        if (!tile) return false;
+
+        // 近卫塔可以放在高台或地面，但不能放在已有炮塔的位置
+        const validType = tile.type === TileType.PLATFORM || tile.type === TileType.GROUND;
+        return validType && !tile.hasTower;
     }
 
     /**
