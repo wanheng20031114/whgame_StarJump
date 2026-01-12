@@ -144,6 +144,13 @@ export class DeploymentBar {
                 color: 0x346edb,
                 description: '高速连续射击，每秒10发',
             },
+            {
+                type: TowerType.GUARD,
+                name: '近卫塔',
+                cost: 200,
+                color: 0x346edb,
+                description: '为周围4格+10防御，内置治疗',
+            },
         ];
     }
 
@@ -200,6 +207,7 @@ export class DeploymentBar {
         else if (unit.type === TowerType.LASER) textureName = 'tower_laser';
         else if (unit.type === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
         else if (unit.type === TowerType.GATLING) textureName = 'tower_gatling';
+        else if (unit.type === TowerType.GUARD) textureName = 'tower_guard';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 
@@ -296,6 +304,7 @@ export class DeploymentBar {
         else if (unitType === TowerType.LASER) textureName = 'tower_laser';
         else if (unitType === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
         else if (unitType === TowerType.GATLING) textureName = 'tower_gatling';
+        else if (unitType === TowerType.GUARD) textureName = 'tower_guard';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 

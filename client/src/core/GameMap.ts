@@ -33,6 +33,9 @@ export class GameMap {
     /** 格子大小（像素） */
     public readonly tileSize: number = 64;
 
+    /** 近卫塔光环计数器地图（key = "x,y"，value = 影响该格子的近卫塔数量） */
+    private guardAuraMap: Map<string, number> = new Map();
+
     /**
      * 构造函数
      * @param container 父级 PixiJS 容器
@@ -397,5 +400,65 @@ export class GameMap {
             return null;
         }
         return this.tileGraphics[y][x];
+    }
+
+    // ============================================================
+    // 近卫塔光环系统（地块计数器）
+    // ============================================================
+
+    /**
+     * 生成地块键值
+     */
+    private getTileKey(x: number, y: number): string {
+        return `${x},${y}`;
+    }
+
+    /**
+     * 增加地块的光环计数
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public addGuardAuraToTile(x: number, y: number): void {
+        const key = this.getTileKey(x, y);
+        const current = this.guardAuraMap.get(key) || 0;
+        this.guardAuraMap.set(key, current + 1);
+    }
+
+    /**
+     * 减少地块的光环计数
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public removeGuardAuraFromTile(x: number, y: number): void {
+        const key = this.getTileKey(x, y);
+        const current = this.guardAuraMap.get(key) || 0;
+        if (current > 0) {
+            this.guardAuraMap.set(key, current - 1);
+        }
+        // 如果计数为0，可以选择删除键以节省内存
+        if ((this.guardAuraMap.get(key) || 0) === 0) {
+            this.guardAuraMap.delete(key);
+        }
+    }
+
+    /**
+     * 检查地块是否有光环效果
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     * @returns 是否有光环效果
+     */
+    public tileHasGuardAura(x: number, y: number): boolean {
+        const key = this.getTileKey(x, y);
+        return (this.guardAuraMap.get(key) || 0) > 0;
+    }
+
+    /**
+     * 获取地块的光环计数（用于调试）
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public getTileGuardAuraCount(x: number, y: number): number {
+        const key = this.getTileKey(x, y);
+        return this.guardAuraMap.get(key) || 0;
     }
 }

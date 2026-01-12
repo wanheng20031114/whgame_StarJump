@@ -182,6 +182,7 @@ export enum TowerType {
     LASER = 'laser',             // 激光塔
     ANTIAIRCRAFT = 'antiaircraft', // 防空塔
     GATLING = 'gatling',         // 加特林塔
+    GUARD = 'guard',             // 近卫塔
 }
 
 /**
