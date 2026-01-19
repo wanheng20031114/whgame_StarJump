@@ -9,9 +9,10 @@
  * - 蓝门（BLUE_GATE）：我方基地，敌人终点
  */
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { TileType, MapConfig, Position, Tile, MAP_CHAR_TO_TYPE } from '../types';
 import { DEFAULT_MAP_DATA, MapDataConfig } from '../data/MapData';
+import { AssetManager } from './AssetManager';
 
 /**
  * 地图系统类
@@ -28,10 +29,13 @@ export class GameMap {
     private container: Container;
 
     /** 格子图形对象缓存 */
-    private tileGraphics: Graphics[][] = [];
+    private tileGraphics: Container[][] = [];
 
     /** 格子大小（像素） */
     public readonly tileSize: number = 64;
+
+    /** 近卫塔光环计数器地图（key = "x,y"，value = 影响该格子的近卫塔数量） */
+    private guardAuraMap: Map<string, number> = new Map();
 
     /**
      * 构造函数
@@ -46,8 +50,7 @@ export class GameMap {
         // 初始化格子数据
         this.tiles = this.initializeTiles();
 
-        // 渲染地图
-        this.render();
+        // 注意：渲染需要在资源加载完成后调用 render() 方法
     }
 
     /**
@@ -116,9 +119,9 @@ export class GameMap {
     }
 
     /**
-     * 渲染地图
+     * 渲染地图（需要在资源加载完成后调用）
      */
-    private render(): void {
+    public render(): void {
         // 清空之前的渲染
         this.container.removeChildren();
         this.tileGraphics = [];
@@ -147,79 +150,84 @@ export class GameMap {
      * 创建单个格子的图形
      * @param tile 格子数据
      */
-    private createTileGraphics(tile: Tile): Graphics {
-        const graphics = new Graphics();
+    private createTileGraphics(tile: Tile): Container {
+        const tileContainer = new Container();
+        const assetManager = AssetManager.getInstance();
 
-        // 根据格子类型设置颜色
-        let color: number;
-        let borderColor: number = 0x333333;
+        // 根据格子类型选择贴图或颜色
+        let textureKey: string | null = null;
 
         switch (tile.type) {
             case TileType.GROUND:
-                // 地面：深棕色
-                color = 0x4a3728;
+                textureKey = 'env_grass';
                 break;
             case TileType.PLATFORM:
-                // 高台：深灰蓝色
-                color = 0x2c3e50;
-                borderColor = 0x3498db;
-                break;
-            case TileType.RED_GATE:
-                // 红门：红色
-                color = 0xe74c3c;
-                borderColor = 0xc0392b;
-                break;
-            case TileType.BLUE_GATE:
-                // 蓝门：蓝色
-                color = 0x3498db;
-                borderColor = 0x2980b9;
+                textureKey = 'env_platform';
                 break;
             case TileType.OBSTACLE:
-                // 障碍物：深黑色
-                color = 0x1a1a1a;
-                borderColor = 0x000000;
+                textureKey = 'env_flower';
                 break;
+            case TileType.RED_GATE:
+            case TileType.BLUE_GATE:
             default:
-                color = 0x333333;
+                textureKey = null; // 使用图形绘制
         }
 
-        // 绘制格子背景
-        graphics.rect(0, 0, this.tileSize, this.tileSize);
-        graphics.fill({ color });
+        // 优先使用贴图
+        const texture = textureKey ? assetManager.getTexture(textureKey) : null;
+        if (texture) {
+            const sprite = new Sprite(texture);
+            sprite.width = this.tileSize;
+            sprite.height = this.tileSize;
+            tileContainer.addChild(sprite);
+        } else {
+            // 回退到图形绘制
+            const graphics = new Graphics();
+            let color: number;
+            let borderColor: number = 0x333333;
 
-        // 绘制边框
-        graphics.rect(0, 0, this.tileSize, this.tileSize);
-        graphics.stroke({ color: borderColor, width: 1 });
+            switch (tile.type) {
+                case TileType.RED_GATE:
+                    color = 0xe74c3c;
+                    borderColor = 0xc0392b;
+                    break;
+                case TileType.BLUE_GATE:
+                    color = 0x3498db;
+                    borderColor = 0x2980b9;
+                    break;
+                default:
+                    color = 0x333333;
+            }
 
-        // 为高台添加特殊标记
-        if (tile.type === TileType.PLATFORM) {
-            // 绘制小方块表示高台
-            const padding = 8;
-            graphics.rect(padding, padding, this.tileSize - padding * 2, this.tileSize - padding * 2);
-            graphics.stroke({ color: 0x3498db, width: 2 });
-        }
+            graphics.rect(0, 0, this.tileSize, this.tileSize);
+            graphics.fill({ color });
+            graphics.rect(0, 0, this.tileSize, this.tileSize);
+            graphics.stroke({ color: borderColor, width: 1 });
 
-        // 为红门添加箭头标记（指向右边）
-        if (tile.type === TileType.RED_GATE) {
-            const centerX = this.tileSize / 2;
-            const centerY = this.tileSize / 2;
-            graphics.moveTo(centerX - 10, centerY - 10);
-            graphics.lineTo(centerX + 10, centerY);
-            graphics.lineTo(centerX - 10, centerY + 10);
-            graphics.stroke({ color: 0xffffff, width: 3 });
-        }
+            // 为红门添加箭头标记
+            if (tile.type === TileType.RED_GATE) {
+                const centerX = this.tileSize / 2;
+                const centerY = this.tileSize / 2;
+                graphics.moveTo(centerX - 10, centerY - 10);
+                graphics.lineTo(centerX + 10, centerY);
+                graphics.lineTo(centerX - 10, centerY + 10);
+                graphics.stroke({ color: 0xffffff, width: 3 });
+            }
 
-        // 为蓝门添加圆形标记
-        if (tile.type === TileType.BLUE_GATE) {
-            graphics.circle(this.tileSize / 2, this.tileSize / 2, 15);
-            graphics.stroke({ color: 0xffffff, width: 3 });
+            // 为蓝门添加圆形标记
+            if (tile.type === TileType.BLUE_GATE) {
+                graphics.circle(this.tileSize / 2, this.tileSize / 2, 15);
+                graphics.stroke({ color: 0xffffff, width: 3 });
+            }
+
+            tileContainer.addChild(graphics);
         }
 
         // 设置交互属性
-        graphics.eventMode = 'static';
-        graphics.cursor = tile.type === TileType.PLATFORM ? 'pointer' : 'default';
+        tileContainer.eventMode = 'static';
+        tileContainer.cursor = tile.type === TileType.PLATFORM || tile.type === TileType.GROUND ? 'pointer' : 'default';
 
-        return graphics;
+        return tileContainer;
     }
 
     /**
@@ -239,27 +247,28 @@ export class GameMap {
      * @param x 格子X坐标
      * @param y 格子Y坐标
      * @param hasTower 是否有炮台
+     * @param isGroundTower 是否是地面炮塔（如近卫塔），不阻挡寻路
      */
-    public setTowerOnTile(x: number, y: number, hasTower: boolean): boolean {
+    public setTowerOnTile(x: number, y: number, hasTower: boolean, isGroundTower: boolean = false): boolean {
         const tile = this.getTile(x, y);
         if (!tile) return false;
 
-        // 只有高台才能放置炮台
-        if (tile.type !== TileType.PLATFORM) {
-            console.warn(`[地图系统] 无法在非高台格子 (${x}, ${y}) 放置炮台`);
+        // 检查格子类型
+        if (tile.type !== TileType.PLATFORM && tile.type !== TileType.GROUND) {
+            console.warn(`[地图系统] 无法在格子 (${x}, ${y}) 放置炮台`);
+            return false;
+        }
+
+        // 地面炮塔只能放在地面格子
+        if (isGroundTower && tile.type !== TileType.GROUND && tile.type !== TileType.PLATFORM) {
+            console.warn(`[地图系统] 近卫塔不能放在此格子类型`);
             return false;
         }
 
         tile.hasTower = hasTower;
 
-        // 更新格子视觉
-        const graphics = this.tileGraphics[y][x];
-        if (hasTower) {
-            // 标记已放置炮台的格子（绿色半透明覆盖）
-            graphics.rect(4, 4, this.tileSize - 8, this.tileSize - 8);
-            graphics.fill({ color: 0x27ae60, alpha: 0.5 });
-        } else {
-            // 移除炮台时，重绘格子以清除绿色标记
+        // 移除炮台时，重绘格子以清除任何残留标记
+        if (!hasTower) {
             this.redrawTile(x, y);
         }
 
@@ -329,6 +338,20 @@ export class GameMap {
     }
 
     /**
+     * 检查格子是否可放置近卫塔（可放在地面或高台）
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public canPlaceGuardTower(x: number, y: number): boolean {
+        const tile = this.getTile(x, y);
+        if (!tile) return false;
+
+        // 近卫塔可以放在高台或地面，但不能放在已有炮塔的位置
+        const validType = tile.type === TileType.PLATFORM || tile.type === TileType.GROUND;
+        return validType && !tile.hasTower;
+    }
+
+    /**
      * 获取地图配置
      */
     public getConfig(): MapConfig {
@@ -392,10 +415,70 @@ export class GameMap {
      * @param x 格子X坐标
      * @param y 格子Y坐标
      */
-    public getTileGraphics(x: number, y: number): Graphics | null {
+    public getTileGraphics(x: number, y: number): Container | null {
         if (x < 0 || x >= this.config.width || y < 0 || y >= this.config.height) {
             return null;
         }
         return this.tileGraphics[y][x];
+    }
+
+    // ============================================================
+    // 近卫塔光环系统（地块计数器）
+    // ============================================================
+
+    /**
+     * 生成地块键值
+     */
+    private getTileKey(x: number, y: number): string {
+        return `${x},${y}`;
+    }
+
+    /**
+     * 增加地块的光环计数
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public addGuardAuraToTile(x: number, y: number): void {
+        const key = this.getTileKey(x, y);
+        const current = this.guardAuraMap.get(key) || 0;
+        this.guardAuraMap.set(key, current + 1);
+    }
+
+    /**
+     * 减少地块的光环计数
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public removeGuardAuraFromTile(x: number, y: number): void {
+        const key = this.getTileKey(x, y);
+        const current = this.guardAuraMap.get(key) || 0;
+        if (current > 0) {
+            this.guardAuraMap.set(key, current - 1);
+        }
+        // 如果计数为0，可以选择删除键以节省内存
+        if ((this.guardAuraMap.get(key) || 0) === 0) {
+            this.guardAuraMap.delete(key);
+        }
+    }
+
+    /**
+     * 检查地块是否有光环效果
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     * @returns 是否有光环效果
+     */
+    public tileHasGuardAura(x: number, y: number): boolean {
+        const key = this.getTileKey(x, y);
+        return (this.guardAuraMap.get(key) || 0) > 0;
+    }
+
+    /**
+     * 获取地块的光环计数（用于调试）
+     * @param x 格子X坐标
+     * @param y 格子Y坐标
+     */
+    public getTileGuardAuraCount(x: number, y: number): number {
+        const key = this.getTileKey(x, y);
+        return this.guardAuraMap.get(key) || 0;
     }
 }

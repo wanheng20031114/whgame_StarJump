@@ -77,7 +77,7 @@ export class WaveSystem {
         let su = [];
         for (let i = 0; i < n; i++) {
             su.push(
-                { type: EnemyType.CAPOO_AK47, delay: i * 500, gateIndex: 0 }
+                { type: EnemyType.CAPOO_AK47, delay: i * 400, gateIndex: 0 }
             );
         }
         return su;
@@ -95,7 +95,7 @@ export class WaveSystem {
             {
                 waveNumber: 1,
                 prepareTime: 3000,
-                enemies: this.test1(80),
+                enemies: this.test1(50),
                 // enemies: [
                 //     { type: EnemyType.CAPOO_AK47, delay: 0, gateIndex: 0 },
                 //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },

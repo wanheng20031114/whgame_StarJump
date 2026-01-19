@@ -183,8 +183,9 @@ export class TowerInfoPanel {
      * 显示炮台信息
      * @param tower 选中的炮台
      * @param towerPixelPos 炮台的像素位置（用于计算面板位置）
+     * @param defenseBonus 额外防御加成（如近卫塔光环）
      */
-    public show(tower: Tower, towerPixelPos?: Position): void {
+    public show(tower: Tower, towerPixelPos?: Position, defenseBonus: number = 0): void {
         this.currentTower = tower;
         const stats = tower.getStats();
         this.titleText.text = tower.getName();
@@ -192,7 +193,14 @@ export class TowerInfoPanel {
         // 更新文本内容
         this.statsTexts['health'].text = `${Math.ceil(stats.health)}/${stats.maxHealth}`;
         this.statsTexts['attack'].text = stats.attack.toString();
-        this.statsTexts['defense'].text = stats.defense.toString();
+        // 显示实际防御力（包含光环加成）
+        const actualDefense = stats.defense + defenseBonus;
+        if (defenseBonus > 0) {
+            // 有加成时显示为 "总数(+加成)" 格式
+            this.statsTexts['defense'].text = `${actualDefense}(+${defenseBonus})`;
+        } else {
+            this.statsTexts['defense'].text = actualDefense.toString();
+        }
         this.statsTexts['magicResist'].text = stats.magicResist.toString();
         // 攻速格式化：如果是小数则保留最多3位，整数则直接显示
         const speedValue = Number.isInteger(stats.attackSpeed)

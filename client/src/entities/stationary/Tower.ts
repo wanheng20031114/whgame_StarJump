@@ -8,6 +8,7 @@
 
 import { Container, Graphics } from 'pixi.js';
 import { Position, TowerStats, TowerType } from '../../types';
+import { AuraGlowEffect } from '../effects/AuraGlowEffect';
 
 /**
  * 炮台基类
@@ -45,6 +46,12 @@ export abstract class Tower {
 
     /** 格子大小 */
     protected readonly tileSize: number = 64;
+
+    /** 近卫塔光环防御加成值（常量） */
+    protected readonly GUARD_AURA_BONUS: number = 10;
+
+    /** 护盾效果引用（受光环影响时显示） */
+    protected auraGlowEffect: AuraGlowEffect | null = null;
 
     /**
      * 构造函数
@@ -108,8 +115,8 @@ export abstract class Tower {
         const barHeight = 4;  // 更紧凑的血条高度
         const healthPercent = this.stats.health / this.stats.maxHealth;
 
-        // 血条 Y 偏移：在格子内顶部 (-tileSize/2 + 4)
-        const barY = -this.tileSize / 2 + 4;
+        // 血条 Y 偏移：在格子内顶部 (-tileSize/2 + 1)
+        const barY = -this.tileSize / 2 + 1;
 
         // 背景（黑色）
         healthBar.rect(-barWidth / 2, barY, barWidth, barHeight);
@@ -312,10 +319,25 @@ export abstract class Tower {
     }
 
     /**
-     * 获取防御力
+     * 获取防御力（基础值）
      */
     public getDefense(): number {
         return this.stats.defense;
+    }
+
+    /**
+     * 获取实际防御力（包含外部加成）
+     * @param bonus 外部防御加成（如近卫塔光环）
+     */
+    public getDefenseWithBonus(bonus: number = 0): number {
+        return this.stats.defense + bonus;
+    }
+
+    /**
+     * 获取光环防御加成值（常量）
+     */
+    public getGuardAuraBonus(): number {
+        return this.GUARD_AURA_BONUS;
     }
 
     /**
@@ -386,6 +408,51 @@ export abstract class Tower {
      * 销毁炮台
      */
     public destroy(): void {
+        // 自动清理护盾效果
+        this.clearAuraEffect();
         this.container.destroy({ children: true });
+    }
+
+    // ============================================================
+    // 光环护盾效果管理
+    // ============================================================
+
+    /**
+     * 设置护盾效果（受光环影响时调用）
+     * @param effect 护盾效果实例
+     */
+    public setAuraEffect(effect: AuraGlowEffect): void {
+        // 如果已经有效果，先清理
+        if (this.auraGlowEffect) {
+            this.auraGlowEffect.destroy();
+        }
+        this.auraGlowEffect = effect;
+    }
+
+    /**
+     * 清除护盾效果（光环消失时调用）
+     */
+    public clearAuraEffect(): void {
+        if (this.auraGlowEffect) {
+            this.auraGlowEffect.destroy();
+            this.auraGlowEffect = null;
+        }
+    }
+
+    /**
+     * 更新显示效果（如光环护盾动画）
+     * @param deltaTime 时间增量（秒）
+     */
+    public updateEffect(deltaTime: number): void {
+        if (this.auraGlowEffect) {
+            this.auraGlowEffect.update(deltaTime);
+        }
+    }
+
+    /**
+     * 检查是否有护盾效果
+     */
+    public hasAuraEffect(): boolean {
+        return this.auraGlowEffect !== null;
     }
 }

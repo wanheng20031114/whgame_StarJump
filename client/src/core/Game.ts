@@ -40,6 +40,8 @@ import { AntiaircraftTower, AntiaircraftFireData } from '../entities/stationary/
 import { ExplosionEffect } from '../entities/effects/ExplosionEffect';
 import { GatlingTower } from '../entities/stationary/gatling_tower/GatlingTower';
 import { GatlingBullet } from '../entities/stationary/gatling_tower/GatlingBullet';
+import { GuardTower } from '../entities/stationary/guard_tower/GuardTower';
+import { AuraGlowEffect } from '../entities/effects/AuraGlowEffect';
 
 /**
  * 游戏主类
@@ -214,6 +216,9 @@ export class Game {
         // 加载资源
         const assetManager = AssetManager.getInstance();
         await assetManager.loadAssets();
+
+        // 资源加载完成后渲染地图（使用贴图）
+        this.gameMap.render();
 
         // 创建UI
         this.createUI();
@@ -457,8 +462,12 @@ export class Game {
         const tileX = Math.floor(mapX / 64);
         const tileY = Math.floor(mapY / 64);
 
-        // 检查是否可以放置
-        if (!this.gameMap.canPlaceTower(tileX, tileY)) {
+        // 检查是否可以放置（近卫塔可以放在地面）
+        const canPlace = this.draggingTowerType === TowerType.GUARD
+            ? this.gameMap.canPlaceGuardTower(tileX, tileY)
+            : this.gameMap.canPlaceTower(tileX, tileY);
+
+        if (!canPlace) {
             console.log('[游戏] 无法在此位置部署');
             this.draggingTowerType = null;
             this.draggingTowerCost = 0;
@@ -505,15 +514,18 @@ export class Game {
             case TowerType.LASER:
                 tower = new LaserTower(id, { x, y });
                 break;
-            case TowerType.PROTOTYPE:
-            default:
-                tower = new PrototypeTower(id, { x, y });
-                break;
             case TowerType.ANTIAIRCRAFT:
                 tower = new AntiaircraftTower(id, { x, y });
                 break;
             case TowerType.GATLING:
                 tower = new GatlingTower(id, { x, y });
+                break;
+            case TowerType.GUARD:
+                tower = new GuardTower(id, { x, y });
+                break;
+            case TowerType.PROTOTYPE:
+            default:
+                tower = new PrototypeTower(id, { x, y });
                 break;
         }
 
@@ -529,10 +541,30 @@ export class Game {
         });
 
         this.entityLayer.addChild(container);
-        this.gameMap.setTowerOnTile(x, y, true);
+        // 近卫塔可放置在地面，不阻挡敌人
+        const isGroundTower = towerType === TowerType.GUARD;
+        this.gameMap.setTowerOnTile(x, y, true, isGroundTower);
 
         // 将炮台血条添加到独立的血条层
         this.healthBarLayer.addChild(tower.getHealthBarContainer());
+
+        // ============= 光环效果处理 =============
+
+        // 1. 检查当前地块是否已有光环效果（由其他近卫塔产生）
+        if (this.gameMap.tileHasGuardAura(x, y) && !tower.hasAuraEffect()) {
+            console.log(`[游戏] 炮塔放置于已有的光环区 (${x}, ${y})，添加护盾效果`);
+            const pixelPos = this.gameMap.tileToPixel(x, y);
+            const effect = new AuraGlowEffect(pixelPos);
+            tower.setAuraEffect(effect);
+            this.entityLayer.addChild(effect.getContainer());
+        }
+
+        // 2. 如果是近卫塔，处理其对周围的影响并添加技力条
+        if (tower.type === TowerType.GUARD && tower instanceof GuardTower) {
+            console.log(`[游戏] 检测到近卫塔放置，开始扩散光环...`);
+            this.healthBarLayer.addChild(tower.getSpBarContainer());
+            this.onGuardTowerPlaced(tower);
+        }
 
         // 播放放置成功音效
         AssetManager.getInstance().playPlantingSound();
@@ -554,9 +586,14 @@ export class Game {
                 x: towerPos.x + this.mapLayer.x,
                 y: towerPos.y + this.mapLayer.y,
             };
+
+            // 获取光环防御加成
+            const tilePos = tower.getTilePosition();
+            const defenseBonus = this.gameMap.tileHasGuardAura(tilePos.x, tilePos.y) ? 10 : 0;
+
             // 显示面板信息（传递屏幕坐标以便显示在右侧）
-            this.towerInfoPanel?.show(tower, screenPos);
-            console.log(`[游戏] 选中炮台: ${tower.getName()}`);
+            this.towerInfoPanel?.show(tower, screenPos, defenseBonus);
+            console.log(`[游戏] 选中炮台: ${tower.getName()}, 防御加成: ${defenseBonus}`);
         } else {
             // 隐藏覆盖和面板
             this.rangeOverlay?.hide();
@@ -584,6 +621,11 @@ export class Game {
         const healthBar = tower.getHealthBarContainer();
         if (healthBar.parent) {
             healthBar.parent.removeChild(healthBar);
+        }
+
+        // 如果是近卫塔，移除光环
+        if (tower.type === TowerType.GUARD && tower instanceof GuardTower) {
+            this.onGuardTowerRemoved(tower);
         }
 
         // 销毁炮台
@@ -814,6 +856,9 @@ export class Game {
             }
 
             const result = tower.update(deltaTime, enemyInfos);
+
+            // 更新护盾动画等显示效果
+            tower.updateEffect(deltaTime);
 
             if (result.shouldFire && result.targetId) {
                 // 对于普通炮台，发射子弹（喷火器、激光塔和防空塔已通过回调处理）
@@ -1127,10 +1172,13 @@ export class Game {
                 // 命中目标炮台，造成伤害
                 const target = this.towers.find(t => t.id === pearl.targetId && t.isAlive());
                 if (target) {
+                    const tilePos = target.getTilePosition();
+                    const defenseBonus = this.gameMap.tileHasGuardAura(tilePos.x, tilePos.y) ? target.getGuardAuraBonus() : 0;
+
                     const damage = this.combatSystem.calculateDamage(
                         pearl.damage,
                         DamageType.PHYSICAL,
-                        target.getDefense(),
+                        target.getDefenseWithBonus(defenseBonus),
                         target.getMagicResist()
                     );
                     target.takeDamage(damage);
@@ -1192,10 +1240,13 @@ export class Game {
                 // 命中目标炮台，造成伤害
                 const target = this.towers.find(t => t.id === bullet.targetId && t.isAlive());
                 if (target) {
+                    const tilePos = target.getTilePosition();
+                    const defenseBonus = this.gameMap.tileHasGuardAura(tilePos.x, tilePos.y) ? target.getGuardAuraBonus() : 0;
+
                     const damage = this.combatSystem.calculateDamage(
                         bullet.damage,
                         DamageType.PHYSICAL,
-                        target.getDefense(),
+                        target.getDefenseWithBonus(defenseBonus),
                         target.getMagicResist()
                     );
                     target.takeDamage(damage);
@@ -1392,6 +1443,12 @@ export class Game {
                 if (healthBar.parent) {
                     healthBar.parent.removeChild(healthBar);
                 }
+
+                // 如果是近卫塔且正在被清理，移除其光环
+                if (tower.type === TowerType.GUARD && tower instanceof GuardTower) {
+                    this.onGuardTowerRemoved(tower);
+                }
+
                 tower.destroy();
                 this.towers.splice(i, 1);
             }
@@ -1595,6 +1652,65 @@ export class Game {
             this.deploymentBar.centerAtBottom(this.app.screen.width, this.app.screen.height);
         }
         console.log('[游戏] 窗口缩放，重新居中');
+    }
+
+    // ============================================================
+    // 光环系统 - 护盾效果由炮塔自己管理，destroy 时自动清理
+    // ============================================================
+
+    /**
+     * 当近卫塔放置时，为周围已有的炮塔添加护盾效果
+     */
+    private onGuardTowerPlaced(guardTower: GuardTower): void {
+        const affectedTiles = guardTower.getAuraAffectedTiles();
+
+        for (const tile of affectedTiles) {
+            this.gameMap.addGuardAuraToTile(tile.x, tile.y);
+            console.log(`[光环系统] 处理地块 (${tile.x}, ${tile.y})`);
+
+            // 检查该地块是否有其他炮塔
+            const towerOnTile = this.towers.find(t => {
+                const pos = t.getTilePosition();
+                const match = pos.x === tile.x && pos.y === tile.y && t.id !== guardTower.id && t.isAlive();
+                if (pos.x === tile.x && pos.y === tile.y) {
+                    console.log(`[光环系统] 地块 (${tile.x}, ${tile.y}) 匹配到炮塔: ${t.getName()}, ID: ${t.id}, 当前存活: ${t.isAlive()}`);
+                }
+                return match;
+            });
+
+            // 如果有炮塔且没有护盾效果，创建护盾
+            if (towerOnTile && !towerOnTile.hasAuraEffect()) {
+                console.log(`[光环系统] 为位于 (${tile.x}, ${tile.y}) 的 ${towerOnTile.getName()} 添加护盾效果`);
+                const pixelPos = this.gameMap.tileToPixel(tile.x, tile.y);
+                const effect = new AuraGlowEffect(pixelPos);
+                towerOnTile.setAuraEffect(effect);
+                this.entityLayer.addChild(effect.getContainer());
+            }
+        }
+        console.log(`[光环系统] 近卫塔放置于 (${guardTower.getTilePosition().x}, ${guardTower.getTilePosition().y})，受影响地块:`, affectedTiles);
+    }
+
+    /**
+     * 当近卫塔移除时，移除周围地块的光环效果
+     */
+    private onGuardTowerRemoved(guardTower: GuardTower): void {
+        const affectedTiles = guardTower.getAuraAffectedTiles();
+
+        for (const tile of affectedTiles) {
+            this.gameMap.removeGuardAuraFromTile(tile.x, tile.y);
+
+            // 如果该地块光环计数降为0，清除该地块炮塔的护盾
+            if (this.gameMap.getTileGuardAuraCount(tile.x, tile.y) === 0) {
+                const towerOnTile = this.towers.find(t => {
+                    const pos = t.getTilePosition();
+                    return pos.x === tile.x && pos.y === tile.y && t !== guardTower;
+                });
+                if (towerOnTile) {
+                    towerOnTile.clearAuraEffect();
+                }
+            }
+        }
+        console.log(`[光环系统] 近卫塔移除，影响 ${affectedTiles.length} 个地块`);
     }
 
     /**
