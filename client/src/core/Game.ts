@@ -404,24 +404,34 @@ export class Game {
 
     /**
      * 设置交互事件
-     * 监听画布的鼠标事件用于拖拽部署
+     * 监听画布的鼠标事件用于拖拽部署和窗口拖动
      */
     private setupInteraction(): void {
         // 设置舞台交互
         this.app.stage.eventMode = 'static';
         this.app.stage.hitArea = this.app.screen;
 
-        // 鼠标移动事件（用于拖拽预览）
+        // 鼠标移动事件（用于拖拽预览和窗口拖动）
         this.app.stage.on('pointermove', (event) => {
+            // 处理单位拖拽
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.updateDragPosition(event.global.x, event.global.y);
+            }
+            // 处理窗口拖动
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.updateBarDrag(event.global.x, event.global.y);
             }
         });
 
         // 鼠标释放事件（用于结束拖拽）
         this.app.stage.on('pointerup', (event) => {
+            // 结束单位拖拽
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.endDrag(event.global.x, event.global.y);
+            }
+            // 结束窗口拖动
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.endBarDrag();
             }
         });
 
@@ -429,6 +439,9 @@ export class Game {
         this.app.stage.on('pointerleave', () => {
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.cancelDrag();
+            }
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.endBarDrag();
             }
         });
 

@@ -70,13 +70,21 @@ import guardTowerImg from '../assets/towers/GuardTower/GuardTower.png';
 // @ts-ignore
 import guardTowerSpriteImg from '../assets/towers/GuardTower/GuardTower_sprite.png';
 
-// 环境/地形贴图
+// 环境/地形贴图 - 自然风格
 // @ts-ignore
 import grassImg from '../assets/env/Grass1.png';
 // @ts-ignore
 import flowerImg from '../assets/env/Flower1.png';
 // @ts-ignore
 import highPlatformImg from '../assets/env/HighPlatform1.png';
+
+// 环境/地形贴图 - 科技风格
+// @ts-ignore
+import groundTechImg from '../assets/env/Ground_tech_1.jpg';
+// @ts-ignore
+import platformTechImg from '../assets/env/Platform_tech_1.png';
+// @ts-ignore
+import obstacleTechImg from '../assets/env/Obstacle_tech_1.png';
 
 /**
  * 资源管理器类
@@ -152,10 +160,15 @@ export class AssetManager {
             Assets.add({ alias: 'tower_guard', src: guardTowerImg });
             Assets.add({ alias: 'guard_sprite', src: guardTowerSpriteImg });
 
-            // 地形贴图
+            // 地形贴图 - 自然风格
             Assets.add({ alias: 'env_grass', src: grassImg });
             Assets.add({ alias: 'env_flower', src: flowerImg });
-            Assets.add({ alias: 'env_platform', src: highPlatformImg });
+            Assets.add({ alias: 'env_platform_nature', src: highPlatformImg });
+
+            // 地形贴图 - 科技风格
+            Assets.add({ alias: 'env_ground_tech', src: groundTechImg });
+            Assets.add({ alias: 'env_platform_tech', src: platformTechImg });
+            Assets.add({ alias: 'env_obstacle_tech', src: obstacleTechImg });
 
             const textures = await Assets.load([
                 'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
@@ -165,7 +178,8 @@ export class AssetManager {
                 'tower_antiaircraft', 'antiaircraft_sprite',
                 'tower_gatling', 'gatling_sprite',
                 'tower_guard', 'guard_sprite',
-                'env_grass', 'env_flower', 'env_platform',
+                'env_grass', 'env_flower', 'env_platform_nature',
+                'env_ground_tech', 'env_platform_tech', 'env_obstacle_tech',
             ]);
 
             // 2. 存入本地纹理缓存
@@ -197,10 +211,15 @@ export class AssetManager {
             this.textures.set('tower_guard', textures.tower_guard);
             this.textures.set('guard_sprite', textures.guard_sprite);
 
-            // 地形纹理
+            // 地形纹理 - 自然风格
             this.textures.set('env_grass', textures.env_grass);
             this.textures.set('env_flower', textures.env_flower);
-            this.textures.set('env_platform', textures.env_platform);
+            this.textures.set('env_platform_nature', textures.env_platform_nature);
+
+            // 地形纹理 - 科技风格
+            this.textures.set('env_ground_tech', textures.env_ground_tech);
+            this.textures.set('env_platform_tech', textures.env_platform_tech);
+            this.textures.set('env_obstacle_tech', textures.env_obstacle_tech);
 
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();
