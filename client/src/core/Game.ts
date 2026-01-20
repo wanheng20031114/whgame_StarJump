@@ -41,6 +41,8 @@ import { ExplosionEffect } from '../entities/effects/ExplosionEffect';
 import { GatlingTower } from '../entities/stationary/gatling_tower/GatlingTower';
 import { GatlingBullet } from '../entities/stationary/gatling_tower/GatlingBullet';
 import { GuardTower } from '../entities/stationary/guard_tower/GuardTower';
+import { RainMortarTower, RainMortarFireData } from '../entities/stationary/rain_mortar_tower/RainMortarTower';
+import { MortarProjectile } from '../entities/stationary/rain_mortar_tower/MortarProjectile';
 import { AuraGlowEffect } from '../entities/effects/AuraGlowEffect';
 
 /**
@@ -113,17 +115,20 @@ export class Game {
     /** 加特林子弹列表（加特林塔攻击） */
     private gatlingBullets: GatlingBullet[] = [];
 
+    /** 迫击炮弹列表（雨迫击炮攻击） */
+    private mortarProjectiles: MortarProjectile[] = [];
+
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
 
     /** 核心生命值 */
-    private coreHealth: number = 10;
+    private coreHealth: number = 100;
 
     /** 核心最大生命值 */
-    private maxCoreHealth: number = 10;
+    private maxCoreHealth: number = 100;
 
     /** 金币 */
-    private gold: number = 10000;
+    private gold: number = 500000;
 
     /** 实体ID计数器 */
     private entityIdCounter: number = 0;
@@ -404,24 +409,34 @@ export class Game {
 
     /**
      * 设置交互事件
-     * 监听画布的鼠标事件用于拖拽部署
+     * 监听画布的鼠标事件用于拖拽部署和窗口拖动
      */
     private setupInteraction(): void {
         // 设置舞台交互
         this.app.stage.eventMode = 'static';
         this.app.stage.hitArea = this.app.screen;
 
-        // 鼠标移动事件（用于拖拽预览）
+        // 鼠标移动事件（用于拖拽预览和窗口拖动）
         this.app.stage.on('pointermove', (event) => {
+            // 处理单位拖拽
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.updateDragPosition(event.global.x, event.global.y);
+            }
+            // 处理窗口拖动
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.updateBarDrag(event.global.x, event.global.y);
             }
         });
 
         // 鼠标释放事件（用于结束拖拽）
         this.app.stage.on('pointerup', (event) => {
+            // 结束单位拖拽
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.endDrag(event.global.x, event.global.y);
+            }
+            // 结束窗口拖动
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.endBarDrag();
             }
         });
 
@@ -429,6 +444,9 @@ export class Game {
         this.app.stage.on('pointerleave', () => {
             if (this.deploymentBar?.getIsDragging()) {
                 this.deploymentBar.cancelDrag();
+            }
+            if (this.deploymentBar?.getIsDraggingBar()) {
+                this.deploymentBar.endBarDrag();
             }
         });
 
@@ -522,6 +540,9 @@ export class Game {
                 break;
             case TowerType.GUARD:
                 tower = new GuardTower(id, { x, y });
+                break;
+            case TowerType.RAIN_MORTAR:
+                tower = new RainMortarTower(id, { x, y });
                 break;
             case TowerType.PROTOTYPE:
             default:
@@ -643,8 +664,8 @@ export class Game {
      */
     private setupWaveCallbacks(): void {
         // 敌人生成回调
-        this.waveSystem.setOnSpawnEnemy((type: EnemyType, _gateIndex: number) => {
-            this.spawnEnemy(type);
+        this.waveSystem.setOnSpawnEnemy((type: EnemyType, gateIndex: number) => {
+            this.spawnEnemy(type, gateIndex);
         });
 
         // 波次开始回调
@@ -675,16 +696,19 @@ export class Game {
 
     /**
      * 生成敌人
+     * @param type 敌人类型
+     * @param gateIndex 红门索引（0-based），超出范围时使用第一个红门
      */
-    private spawnEnemy(type: EnemyType): void {
+    private spawnEnemy(type: EnemyType, gateIndex: number = 0): void {
         const redGates = this.gameMap.getRedGates();
         if (redGates.length === 0) {
             console.error('[游戏] 没有红门，无法生成敌人');
             return;
         }
 
-        // 从第一个红门生成
-        const gate = redGates[0];
+        // 选择红门：超出范围时默认使用第一个红门
+        const safeIndex = (gateIndex >= 0 && gateIndex < redGates.length) ? gateIndex : 0;
+        const gate = redGates[safeIndex];
         const startPos = this.gameMap.tileToPixel(gate.x, gate.y);
 
         // 创建敌人
@@ -790,6 +814,9 @@ export class Game {
         // 更新加特林子弹（加特林塔攻击）
         this.updateGatlingBullets(clampedDelta);
 
+        // 更新迫击炮弹（雨迫击炮攻击）
+        this.updateMortarProjectiles(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
 
@@ -855,14 +882,24 @@ export class Game {
                 }
             }
 
+            // 对于雨迫击炮，需要设置开火回调
+            if (tower.type === TowerType.RAIN_MORTAR && tower instanceof RainMortarTower) {
+                if (!tower._rainMortarCallbackSet) {
+                    tower.setOnFire((data: RainMortarFireData) => {
+                        this.fireMortar(data);
+                    });
+                    tower._rainMortarCallbackSet = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             // 更新护盾动画等显示效果
             tower.updateEffect(deltaTime);
 
             if (result.shouldFire && result.targetId) {
-                // 对于普通炮台，发射子弹（喷火器、激光塔和防空塔已通过回调处理）
-                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER && tower.type !== TowerType.ANTIAIRCRAFT) {
+                // 对于普通炮台，发射子弹（喷火器、激光塔、防空塔和雨迫击炮已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER && tower.type !== TowerType.ANTIAIRCRAFT && tower.type !== TowerType.RAIN_MORTAR) {
                     if (tower.type === TowerType.GATLING) {
                         this.fireGatlingBullet(tower, result.targetId);
                     } else {
@@ -1037,6 +1074,113 @@ export class Game {
 
         if (hitCount > 0) {
             console.log(`[防空塔] 爆炸命中 ${hitCount} 个敌人`);
+        }
+    }
+
+    /**
+     * 发射迫击炮弹（雨迫击炮攻击）
+     * @param data 迫击炮开火数据
+     */
+    private fireMortar(data: RainMortarFireData): void {
+        const projectile = new MortarProjectile(
+            data.startPos,
+            data.targetPos,
+            data.baseDamage,
+            data.layers,
+            data.physicalPen,
+            data.flightTime
+        );
+        this.mortarProjectiles.push(projectile);
+        this.projectileLayer.addChild(projectile.getContainer());
+
+        console.log(`[雨迫击炮] 发射炮弹，目标: (${Math.round(data.targetPos.x)}, ${Math.round(data.targetPos.y)})`);
+    }
+
+    /**
+     * 更新迫击炮弹
+     */
+    private updateMortarProjectiles(deltaTime: number): void {
+        for (let i = this.mortarProjectiles.length - 1; i >= 0; i--) {
+            const projectile = this.mortarProjectiles[i];
+
+            // 更新炮弹位置
+            const landed = projectile.update(deltaTime);
+
+            if (landed) {
+                // 炮弹落地，触发爆炸
+                this.handleMortarExplosion(projectile);
+                projectile.hit();
+            }
+
+            // 清理失效炮弹
+            if (!projectile.isAlive()) {
+                projectile.destroy();
+                this.mortarProjectiles.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 处理迫击炮爆炸（复用防空塔分层伤害逻辑）
+     */
+    private handleMortarExplosion(projectile: MortarProjectile): void {
+        const targetPos = projectile.getTargetPosition();
+        const layers = projectile.getLayers();
+        const maxRadius = layers.length > 0 ? layers[layers.length - 1].radius : 96;
+
+        // 创建爆炸视觉效果
+        const explosion = new ExplosionEffect(targetPos, maxRadius);
+        this.explosionEffects.push(explosion);
+        this.projectileLayer.addChild(explosion.getContainer());
+
+        // 播放爆炸音效（使用防空塔音效）
+        AssetManager.getInstance().playAntiaircraftTowerFireSound();
+
+        // 计算 AOE 伤害（与防空塔逻辑一致）
+        let hitCount = 0;
+        for (const enemy of this.enemies) {
+            if (!enemy.isAlive()) continue;
+
+            const enemyPos = enemy.getPosition();
+            const dx = enemyPos.x - targetPos.x;
+            const dy = enemyPos.y - targetPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 检查敌人在哪个伤害层（复用防空塔逻辑）
+            let damagePercent = 0;
+            for (const layer of layers) {
+                if (distance <= layer.radius) {
+                    damagePercent = layer.damagePercent;
+                    break; // 取最内层的伤害
+                }
+            }
+
+            if (damagePercent > 0) {
+                const rawDamage = projectile.getBaseDamage() * damagePercent;
+                const finalDamage = this.combatSystem.calculateDamage(
+                    rawDamage,
+                    DamageType.PHYSICAL,
+                    enemy.getDefense(),
+                    enemy.getMagicResist(),
+                    projectile.getPhysicalPen(),  // 传入物理穿透
+                    0
+                );
+                enemy.takeDamage(finalDamage);
+                hitCount++;
+
+                // 添加伤害飘字
+                this.addDamagePopup(finalDamage, DamageType.PHYSICAL, enemyPos);
+
+                // 击杀奖励
+                if (!enemy.isAlive()) {
+                    this.gold += 10;
+                    this.updateUI();
+                }
+            }
+        }
+
+        if (hitCount > 0) {
+            console.log(`[雨迫击炮] 爆炸命中 ${hitCount} 个敌人`);
         }
     }
 

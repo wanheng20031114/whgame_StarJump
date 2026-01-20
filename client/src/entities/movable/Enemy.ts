@@ -240,6 +240,20 @@ export abstract class Enemy {
     }
 
     /**
+     * 获取物理穿透
+     */
+    public getPhysicalPen(): number {
+        return this.stats.physicalPen ?? 0;
+    }
+
+    /**
+     * 获取法术穿透
+     */
+    public getMagicPen(): number {
+        return this.stats.magicPen ?? 0;
+    }
+
+    /**
      * 检查是否存活
      */
     public isAlive(): boolean {

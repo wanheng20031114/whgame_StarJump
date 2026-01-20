@@ -70,13 +70,27 @@ import guardTowerImg from '../assets/towers/GuardTower/GuardTower.png';
 // @ts-ignore
 import guardTowerSpriteImg from '../assets/towers/GuardTower/GuardTower_sprite.png';
 
-// 环境/地形贴图
+// 雨迫击炮资源
+// @ts-ignore
+import rainMortarTowerImg from '../assets/towers/RainMortarTower/RainMortarTower.png';
+// @ts-ignore
+import rainMortarTowerSpriteImg from '../assets/towers/RainMortarTower/RainMortarTower_sprite.png';
+
+// 环境/地形贴图 - 自然风格
 // @ts-ignore
 import grassImg from '../assets/env/Grass1.png';
 // @ts-ignore
 import flowerImg from '../assets/env/Flower1.png';
 // @ts-ignore
 import highPlatformImg from '../assets/env/HighPlatform1.png';
+
+// 环境/地形贴图 - 科技风格
+// @ts-ignore
+import groundTechImg from '../assets/env/Ground_tech_1.jpg';
+// @ts-ignore
+import platformTechImg from '../assets/env/Platform_tech_1.png';
+// @ts-ignore
+import obstacleTechImg from '../assets/env/Obstacle_tech_1.png';
 
 /**
  * 资源管理器类
@@ -92,8 +106,17 @@ export class AssetManager {
     /** 纹理缓存 */
     private textures: Map<string, Texture> = new Map();
 
-    /** 喷火器音效上次播放时间（用于冷却控制） */
-    private lastFlameThrowerSoundTime: number = 0;
+    /** 音频池映射：url -> Audio数组 */
+    private audioPools: Map<string, HTMLAudioElement[]> = new Map();
+
+    /** 每个音频池的大小 */
+    private readonly POOL_SIZE = 10;
+
+    /** 最近一次播放时间记录，用于节流：url -> timestamp */
+    private lastPlayTimes: Map<string, number> = new Map();
+
+    /** 默认节流时间（毫秒） */
+    private readonly DEFAULT_THROTTLE = 50;
 
     /**
      * 私有构造函数（单例模式）
@@ -152,10 +175,19 @@ export class AssetManager {
             Assets.add({ alias: 'tower_guard', src: guardTowerImg });
             Assets.add({ alias: 'guard_sprite', src: guardTowerSpriteImg });
 
-            // 地形贴图
+            // 雨迫击炮资源
+            Assets.add({ alias: 'tower_rain_mortar', src: rainMortarTowerImg });
+            Assets.add({ alias: 'rain_mortar_tower_sprite', src: rainMortarTowerSpriteImg });
+
+            // 地形贴图 - 自然风格
             Assets.add({ alias: 'env_grass', src: grassImg });
             Assets.add({ alias: 'env_flower', src: flowerImg });
-            Assets.add({ alias: 'env_platform', src: highPlatformImg });
+            Assets.add({ alias: 'env_platform_nature', src: highPlatformImg });
+
+            // 地形贴图 - 科技风格
+            Assets.add({ alias: 'env_ground_tech', src: groundTechImg });
+            Assets.add({ alias: 'env_platform_tech', src: platformTechImg });
+            Assets.add({ alias: 'env_obstacle_tech', src: obstacleTechImg });
 
             const textures = await Assets.load([
                 'tower_prototype', 'tower_flamethrower', 'enemy_capoo',
@@ -165,7 +197,9 @@ export class AssetManager {
                 'tower_antiaircraft', 'antiaircraft_sprite',
                 'tower_gatling', 'gatling_sprite',
                 'tower_guard', 'guard_sprite',
-                'env_grass', 'env_flower', 'env_platform',
+                'tower_rain_mortar', 'rain_mortar_tower_sprite',
+                'env_grass', 'env_flower', 'env_platform_nature',
+                'env_ground_tech', 'env_platform_tech', 'env_obstacle_tech',
             ]);
 
             // 2. 存入本地纹理缓存
@@ -197,10 +231,19 @@ export class AssetManager {
             this.textures.set('tower_guard', textures.tower_guard);
             this.textures.set('guard_sprite', textures.guard_sprite);
 
-            // 地形纹理
+            // 雨迫击炮纹理
+            this.textures.set('tower_rain_mortar', textures.tower_rain_mortar);
+            this.textures.set('rain_mortar_sprite', textures.rain_mortar_tower_sprite);
+
+            // 地形纹理 - 自然风格
             this.textures.set('env_grass', textures.env_grass);
             this.textures.set('env_flower', textures.env_flower);
-            this.textures.set('env_platform', textures.env_platform);
+            this.textures.set('env_platform_nature', textures.env_platform_nature);
+
+            // 地形纹理 - 科技风格
+            this.textures.set('env_ground_tech', textures.env_ground_tech);
+            this.textures.set('env_platform_tech', textures.env_platform_tech);
+            this.textures.set('env_obstacle_tech', textures.env_obstacle_tech);
 
             // 3. 创建其他占位符纹理
             this.createPlaceholderTextures();
@@ -218,8 +261,6 @@ export class AssetManager {
      * 在没有实际图片资源时使用
      */
     private createPlaceholderTextures(): void {
-        // 这些纹理会在运行时通过 Graphics 绘制
-        // 此处仅作为示例，实际纹理在 Game.ts 中创建
         console.log('[资源管理器] 使用占位符纹理');
     }
 
@@ -250,7 +291,6 @@ export class AssetManager {
 
     /**
      * 播放点击音效
-     * 使用原生 Audio API，确保非阻塞播放
      */
     public playClickSound(): void {
         this.playSound(clickSoundUrl, 0.8);
@@ -258,15 +298,10 @@ export class AssetManager {
 
     /**
      * 播放喷火器开火音效
-     * 每 3 秒至多播放一次，避免频繁播放导致噪音
+     * 喷火器已经自带了 3s 的冷却限频
      */
     public playFlameThrowerFireSound(): void {
-        const now = Date.now();
-        const cooldown = 3000; // 3 秒冷却时间
-        if (now - this.lastFlameThrowerSoundTime >= cooldown) {
-            this.lastFlameThrowerSoundTime = now;
-            this.playSound(flameThrowerFireUrl, 0.2);
-        }
+        this.playSound(flameThrowerFireUrl, 0.2, 3000);
     }
 
     /**
@@ -275,11 +310,12 @@ export class AssetManager {
     public playPrototypeTowerFireSound(): void {
         this.playSound(prototypeTowerFireUrl, 0.1);
     }
+
     /**
-      * 播放原型炮台（给加特林使用）开火音效
-      */
+     * 播放加特林开火音效 (使用原型音效)
+     */
     public playGatlingTowerFireSound(): void {
-        this.playSound(prototypeTowerFireUrl, 0.02);
+        this.playSound(prototypeTowerFireUrl, 0.02, 30); // 加特林射速极高，节流设为 30ms
     }
 
     /**
@@ -307,28 +343,58 @@ export class AssetManager {
      * 播放 AK47 Capoo 开火音效
      */
     public playCapooAK47FireSound(): void {
-        this.playSound(capooAK47FireUrl, 0.26);
+        this.playSound(capooAK47FireUrl, 0.26, 40);
     }
 
     /**
-     * 播放防空塔开火音效
+     * 播放防空塔/雨迫击炮开火/爆炸音效
      */
     public playAntiaircraftTowerFireSound(): void {
-        this.playSound(antiaircraftTowerFireUrl, 0.20);
+        this.playSound(antiaircraftTowerFireUrl, 0.20, 60); // 爆炸频繁，设为 60ms 节流
     }
 
     /**
-     * 通用音效播放方法
+     * 音效播放方法 (带 Audio Pool 和 Throttling)
      * @param url 音效文件 URL
      * @param volume 音量 (0-1)
+     * @param throttleMs 节流时间（毫秒），在此时间内重复调用将不播放
      */
-    private playSound(url: string, volume: number = 0.5): void {
+    private playSound(url: string, volume: number = 0.5, throttleMs: number = this.DEFAULT_THROTTLE): void {
+        const now = Date.now();
+        const lastPlay = this.lastPlayTimes.get(url) || 0;
+
+        // 1. 节流检查：如果在极短时间内连续请求同一种音效，直接跳过
+        if (now - lastPlay < throttleMs) {
+            return;
+        }
+
         try {
-            const audio = new Audio(url);
-            audio.volume = volume;
-            audio.play().catch(error => {
-                console.warn('[资源管理器] 音效播放受限:', error);
-            });
+            // 2. 获取或初始化该 URL 的音频池
+            let pool = this.audioPools.get(url);
+            if (!pool) {
+                pool = [];
+                for (let i = 0; i < this.POOL_SIZE; i++) {
+                    const audio = new Audio(url);
+                    audio.preload = 'auto';
+                    pool.push(audio);
+                }
+                this.audioPools.set(url, pool);
+            }
+
+            // 3. 在池中找到第一个空闲（已暂停或已放完）的音频对象
+            const audio = pool.find(a => a.paused || a.ended);
+
+            if (audio) {
+                audio.volume = volume;
+                audio.currentTime = 0;
+                audio.play().catch(error => {
+                    // console.warn('[资源管理器] 即使使用了 Pool，播放仍受限:', error);
+                });
+                this.lastPlayTimes.set(url, now);
+            } else {
+                // 如果池子全满了，说明并发数极高，这种情况下为了性能，直接舍弃本次播放
+                // console.log(`[资源管理器] 音频池 ${url} 已满，舍弃请求`);
+            }
         } catch (error) {
             console.error('[资源管理器] 播放音效失败:', error);
         }

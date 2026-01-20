@@ -88,8 +88,8 @@ const DEFAULT_EXPLOSION_LAYERS: DamageLayer[] = [
  * 防空塔默认属性
  */
 const ANTIAIRCRAFT_STATS: TowerStats = {
-    health: 100,
-    maxHealth: 100,
+    health: 1000,
+    maxHealth: 1000,
     defense: 10,
     magicResist: 15,
     attack: 50,

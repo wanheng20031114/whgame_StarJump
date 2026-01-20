@@ -11,7 +11,7 @@
 
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { TileType, MapConfig, Position, Tile, MAP_CHAR_TO_TYPE } from '../types';
-import { DEFAULT_MAP_DATA, MapDataConfig } from '../data/MapData';
+import { DEFAULT_MAP_DATA, MapDataConfig, MapTheme, getThemeById } from '../data/MapData';
 import { AssetManager } from './AssetManager';
 
 /**
@@ -37,12 +37,18 @@ export class GameMap {
     /** 近卫塔光环计数器地图（key = "x,y"，value = 影响该格子的近卫塔数量） */
     private guardAuraMap: Map<string, number> = new Map();
 
+    /** 当前地图主题 */
+    private currentTheme: MapTheme;
+
     /**
      * 构造函数
      * @param container 父级 PixiJS 容器
      */
     constructor(container: Container) {
         this.container = container;
+
+        // 解析主题（应用1覆盖）
+        this.currentTheme = this.resolveTheme(DEFAULT_MAP_DATA);
 
         // 初始化默认地图数据
         this.config = this.parseMapData(DEFAULT_MAP_DATA);
@@ -51,6 +57,23 @@ export class GameMap {
         this.tiles = this.initializeTiles();
 
         // 注意：渲染需要在资源加载完成后调用 render() 方法
+    }
+
+    /**
+     * 解析主题配置
+     * @param data 地图数据
+     * @returns 解析后的主题配置（应用了覆盖）
+     */
+    private resolveTheme(data: MapDataConfig): MapTheme {
+        const baseTheme = getThemeById(data.themeId);
+        // 应用覆盖
+        if (data.tileOverrides) {
+            return {
+                ...baseTheme,
+                tiles: { ...baseTheme.tiles, ...data.tileOverrides }
+            };
+        }
+        return baseTheme;
     }
 
     /**
@@ -92,6 +115,7 @@ export class GameMap {
      * @param data 地图数据
      */
     public loadFromData(data: MapDataConfig): void {
+        this.currentTheme = this.resolveTheme(data);
         this.config = this.parseMapData(data);
         this.tiles = this.initializeTiles();
         this.render();
@@ -154,18 +178,20 @@ export class GameMap {
         const tileContainer = new Container();
         const assetManager = AssetManager.getInstance();
 
-        // 根据格子类型选择贴图或颜色
+        // 根据格子类型和当前主题选择贴图
         let textureKey: string | null = null;
+        let isObstacle = false;
 
         switch (tile.type) {
             case TileType.GROUND:
-                textureKey = 'env_grass';
+                textureKey = this.currentTheme.tiles.ground;
                 break;
             case TileType.PLATFORM:
-                textureKey = 'env_platform';
+                textureKey = this.currentTheme.tiles.platform;
                 break;
             case TileType.OBSTACLE:
-                textureKey = 'env_flower';
+                textureKey = this.currentTheme.tiles.obstacle;
+                isObstacle = true;
                 break;
             case TileType.RED_GATE:
             case TileType.BLUE_GATE:
@@ -177,11 +203,41 @@ export class GameMap {
         const texture = textureKey ? assetManager.getTexture(textureKey) : null;
         if (texture) {
             const sprite = new Sprite(texture);
-            sprite.width = this.tileSize;
-            sprite.height = this.tileSize;
-            tileContainer.addChild(sprite);
+
+            if (isObstacle) {
+                // ============================================================
+                // 障碍物伪3D效果
+                // ============================================================
+                // 1. 先绘制一个地面背景（障碍物下方需要有地面）
+                const groundTexture = assetManager.getTexture(this.currentTheme.tiles.ground);
+                if (groundTexture) {
+                    const groundSprite = new Sprite(groundTexture);
+                    groundSprite.width = this.tileSize;
+                    groundSprite.height = this.tileSize;
+                    tileContainer.addChild(groundSprite);
+                }
+
+                // 2. 障碍物保持原始比例，不拉伸
+                const maxSize = this.tileSize * 0.9; // 最大占格子90%
+                const scaleX = maxSize / sprite.texture.width;
+                const scaleY = maxSize / sprite.texture.height;
+                const scale = Math.min(scaleX, scaleY);
+                sprite.scale.set(scale);
+
+                // 3. 锚点设在底部中心，放置于格子底部中央
+                sprite.anchor.set(0.5, 1);
+                sprite.x = this.tileSize / 2;
+                sprite.y = this.tileSize; // 底部对齐
+
+                tileContainer.addChild(sprite);
+            } else {
+                // 普通地块：填满整个格子
+                sprite.width = this.tileSize;
+                sprite.height = this.tileSize;
+                tileContainer.addChild(sprite);
+            }
         } else {
-            // 回退到图形绘制
+            // 回退到图形绘制（红门、蓝门等）
             const graphics = new Graphics();
             let color: number;
             let borderColor: number = 0x333333;

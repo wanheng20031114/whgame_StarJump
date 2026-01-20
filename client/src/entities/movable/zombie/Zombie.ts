@@ -16,8 +16,8 @@ import { Enemy } from '../Enemy';
  */
 const ZOMBIE_STATS: EnemyStats = {
     attack: 0,
-    health: 100,
-    maxHealth: 100,  // 与 health 保持一致
+    health: 800,
+    maxHealth: 800,  // 与 health 保持一致
     defense: 1,
     magicResist: 0,
     moveSpeed: 0.5,  // 每秒移动0.5格

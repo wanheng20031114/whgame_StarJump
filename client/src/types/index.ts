@@ -155,6 +155,10 @@ export interface TowerStats {
     attack: number;
     /** 攻击速度（每秒攻击次数） */
     attackSpeed: number;
+    /** 物理穿透（减少目标防御力） */
+    physicalPen?: number;
+    /** 法术穿透（减少目标法术抗性） */
+    magicPen?: number;
     /** 攻击范围模板（二维数组，1表示在范围内，0或中心标记表示不在） */
     rangePattern?: number[][];
 }
@@ -183,6 +187,7 @@ export enum TowerType {
     ANTIAIRCRAFT = 'antiaircraft', // 防空塔
     GATLING = 'gatling',         // 加特林塔
     GUARD = 'guard',             // 近卫塔
+    RAIN_MORTAR = 'rain_mortar', // 雨迫击炮
 }
 
 /**
@@ -201,6 +206,10 @@ export interface EnemyStats {
     magicResist: number;
     /** 移动速度（每秒格子数） */
     moveSpeed: number;
+    /** 物理穿透（减少目标防御力） */
+    physicalPen?: number;
+    /** 法术穿透（减少目标法术抗性） */
+    magicPen?: number;
 }
 
 /**
