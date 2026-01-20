@@ -348,6 +348,20 @@ export abstract class Tower {
     }
 
     /**
+     * 获取物理穿透
+     */
+    public getPhysicalPen(): number {
+        return this.stats.physicalPen ?? 0;
+    }
+
+    /**
+     * 获取法术穿透
+     */
+    public getMagicPen(): number {
+        return this.stats.magicPen ?? 0;
+    }
+
+    /**
      * 获取攻击范围（像素）
      * 基于 rangePattern 模板自动计算最大包围半径
      */

@@ -41,6 +41,8 @@ import { ExplosionEffect } from '../entities/effects/ExplosionEffect';
 import { GatlingTower } from '../entities/stationary/gatling_tower/GatlingTower';
 import { GatlingBullet } from '../entities/stationary/gatling_tower/GatlingBullet';
 import { GuardTower } from '../entities/stationary/guard_tower/GuardTower';
+import { RainMortarTower, RainMortarFireData } from '../entities/stationary/rain_mortar_tower/RainMortarTower';
+import { MortarProjectile } from '../entities/MortarProjectile';
 import { AuraGlowEffect } from '../entities/effects/AuraGlowEffect';
 
 /**
@@ -112,6 +114,9 @@ export class Game {
 
     /** 加特林子弹列表（加特林塔攻击） */
     private gatlingBullets: GatlingBullet[] = [];
+
+    /** 迫击炮弹列表（雨迫击炮攻击） */
+    private mortarProjectiles: MortarProjectile[] = [];
 
     /** 游戏状态 */
     private gameState: GameState = GameState.IDLE;
@@ -536,6 +541,9 @@ export class Game {
             case TowerType.GUARD:
                 tower = new GuardTower(id, { x, y });
                 break;
+            case TowerType.RAIN_MORTAR:
+                tower = new RainMortarTower(id, { x, y });
+                break;
             case TowerType.PROTOTYPE:
             default:
                 tower = new PrototypeTower(id, { x, y });
@@ -803,6 +811,9 @@ export class Game {
         // 更新加特林子弹（加特林塔攻击）
         this.updateGatlingBullets(clampedDelta);
 
+        // 更新迫击炮弹（雨迫击炮攻击）
+        this.updateMortarProjectiles(clampedDelta);
+
         // 清理死亡实体
         this.cleanupDeadEntities();
 
@@ -868,14 +879,24 @@ export class Game {
                 }
             }
 
+            // 对于雨迫击炮，需要设置开火回调
+            if (tower.type === TowerType.RAIN_MORTAR && tower instanceof RainMortarTower) {
+                if (!tower._rainMortarCallbackSet) {
+                    tower.setOnFire((data: RainMortarFireData) => {
+                        this.fireMortar(data);
+                    });
+                    tower._rainMortarCallbackSet = true;
+                }
+            }
+
             const result = tower.update(deltaTime, enemyInfos);
 
             // 更新护盾动画等显示效果
             tower.updateEffect(deltaTime);
 
             if (result.shouldFire && result.targetId) {
-                // 对于普通炮台，发射子弹（喷火器、激光塔和防空塔已通过回调处理）
-                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER && tower.type !== TowerType.ANTIAIRCRAFT) {
+                // 对于普通炮台，发射子弹（喷火器、激光塔、防空塔和雨迫击炮已通过回调处理）
+                if (tower.type !== TowerType.FLAMETHROWER && tower.type !== TowerType.LASER && tower.type !== TowerType.ANTIAIRCRAFT && tower.type !== TowerType.RAIN_MORTAR) {
                     if (tower.type === TowerType.GATLING) {
                         this.fireGatlingBullet(tower, result.targetId);
                     } else {
@@ -1050,6 +1071,107 @@ export class Game {
 
         if (hitCount > 0) {
             console.log(`[防空塔] 爆炸命中 ${hitCount} 个敌人`);
+        }
+    }
+
+    /**
+     * 发射迫击炮弹（雨迫击炮攻击）
+     * @param data 迫击炮开火数据
+     */
+    private fireMortar(data: RainMortarFireData): void {
+        const projectile = new MortarProjectile(
+            data.startPos,
+            data.targetPos,
+            data.damage,
+            data.explosionRadius,
+            data.physicalPen,
+            data.flightTime
+        );
+        this.mortarProjectiles.push(projectile);
+        this.projectileLayer.addChild(projectile.getContainer());
+
+        console.log(`[雨迫击炮] 发射炮弹，目标: (${Math.round(data.targetPos.x)}, ${Math.round(data.targetPos.y)})`);
+    }
+
+    /**
+     * 更新迫击炮弹
+     */
+    private updateMortarProjectiles(deltaTime: number): void {
+        for (let i = this.mortarProjectiles.length - 1; i >= 0; i--) {
+            const projectile = this.mortarProjectiles[i];
+
+            // 更新炮弹位置
+            const landed = projectile.update(deltaTime);
+
+            if (landed) {
+                // 炮弹落地，触发爆炸
+                this.handleMortarExplosion(projectile);
+                projectile.hit();
+            }
+
+            // 清理失效炮弹
+            if (!projectile.isAlive()) {
+                projectile.destroy();
+                this.mortarProjectiles.splice(i, 1);
+            }
+        }
+    }
+
+    /**
+     * 处理迫击炮爆炸
+     */
+    private handleMortarExplosion(projectile: MortarProjectile): void {
+        const targetPos = projectile.getTargetPosition();
+        const explosionRadiusPx = projectile.getExplosionRadius() * 64; // 格数转像素
+
+        // 创建爆炸视觉效果
+        const explosion = new ExplosionEffect(targetPos, explosionRadiusPx);
+        this.explosionEffects.push(explosion);
+        this.projectileLayer.addChild(explosion.getContainer());
+
+        // 播放爆炸音效（使用防空塔音效）
+        AssetManager.getInstance().playAntiaircraftTowerFireSound();
+
+        // 计算AOE伤害
+        let hitCount = 0;
+        for (const enemy of this.enemies) {
+            if (!enemy.isAlive()) continue;
+
+            const enemyPos = enemy.getPosition();
+            const dx = enemyPos.x - targetPos.x;
+            const dy = enemyPos.y - targetPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 在爆炸范围内造成伤害
+            if (distance <= explosionRadiusPx) {
+                // 距离越近伤害越高（核心100%，边缘20%）
+                const damagePercent = 1 - (distance / explosionRadiusPx) * 0.8;
+                const rawDamage = projectile.getDamage() * damagePercent;
+
+                const finalDamage = this.combatSystem.calculateDamage(
+                    rawDamage,
+                    DamageType.PHYSICAL,
+                    enemy.getDefense(),
+                    enemy.getMagicResist(),
+                    projectile.getPhysicalPen(),  // 传入物理穿透
+                    0
+                );
+                enemy.takeDamage(finalDamage);
+                hitCount++;
+
+                // 添加伤害飘字
+                this.addDamagePopup(finalDamage, DamageType.PHYSICAL, enemyPos);
+
+                // 击杀奖励
+                if (!enemy.isAlive()) {
+                    this.gold += 10;
+                    this.updateUI();
+                }
+            }
+        }
+
+        if (hitCount > 0) {
+            console.log(`[雨迫击炮] 爆炸命中 ${hitCount} 个敌人`);
         }
     }
 

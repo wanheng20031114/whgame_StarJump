@@ -193,6 +193,13 @@ export class DeploymentBar {
                 color: 0x346edb,
                 description: '为周围4格+10防御，内置治疗',
             },
+            {
+                type: TowerType.RAIN_MORTAR,
+                name: '雨迫击炮',
+                cost: 150,
+                color: 0x5d4e37,
+                description: '连发4炮弹，中范围AOE爆炸',
+            },
         ];
     }
 
@@ -262,6 +269,7 @@ export class DeploymentBar {
         else if (unit.type === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
         else if (unit.type === TowerType.GATLING) textureName = 'tower_gatling';
         else if (unit.type === TowerType.GUARD) textureName = 'tower_guard';
+        else if (unit.type === TowerType.RAIN_MORTAR) textureName = 'tower_rain_mortar';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 
@@ -507,6 +515,7 @@ export class DeploymentBar {
         else if (unitType === TowerType.ANTIAIRCRAFT) textureName = 'tower_antiaircraft';
         else if (unitType === TowerType.GATLING) textureName = 'tower_gatling';
         else if (unitType === TowerType.GUARD) textureName = 'tower_guard';
+        else if (unitType === TowerType.RAIN_MORTAR) textureName = 'tower_rain_mortar';
 
         const texture = AssetManager.getInstance().getTexture(textureName);
 

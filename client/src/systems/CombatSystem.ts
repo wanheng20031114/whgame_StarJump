@@ -25,22 +25,27 @@ export enum DamageType {
 export class CombatSystem {
     /**
      * 计算最终伤害值
+     * 
      * 公式：
-     * - 物理伤害 = 攻击力 × (100 / (100 + 防御力))
-     * - 法术伤害 = 攻击力 × (100 / (100 + 法术抗性))
+     * - 物理伤害 = 攻击力 - max(0, 防御力 - 物理穿透)
+     * - 法术伤害 = 攻击力 × (1 - max(0, 法术抗性 - 法术穿透) / 100)
      * - 真实伤害 = 攻击力（不受减免）
      * 
      * @param baseDamage 基础伤害值
      * @param damageType 伤害类型
      * @param defense 目标防御力
      * @param magicResist 目标法术抗性
+     * @param physicalPen 攻击者物理穿透（默认0）
+     * @param magicPen 攻击者法术穿透（默认0）
      * @returns 最终伤害值
      */
     public calculateDamage(
         baseDamage: number,
         damageType: DamageType,
         defense: number,
-        magicResist: number
+        magicResist: number,
+        physicalPen: number = 0,
+        magicPen: number = 0
     ): number {
         let finalDamage: number;
 
@@ -49,14 +54,16 @@ export class CombatSystem {
 
         switch (damageType) {
             case DamageType.PHYSICAL:
-                // 物理伤害：减算公式 [基础攻击 - 防御力]
-                // 高防敌人可以大幅削减物理伤害
-                finalDamage = Math.max(minimumDamage, baseDamage - defense);
+                // 物理伤害：减算公式 [基础攻击 - (防御力 - 物理穿透)]
+                // 物理穿透减少目标的有效防御力
+                const effectiveDefense = Math.max(0, defense - physicalPen);
+                finalDamage = Math.max(minimumDamage, baseDamage - effectiveDefense);
                 break;
             case DamageType.MAGICAL:
-                // 法术伤害：乘算公式 [基础攻击 * (1 - 抗性/100)]
-                // 法术抗性作为百分比减免，Res=50 表示减免 50%
-                const resistReduction = Math.min(100, Math.max(0, magicResist)) / 100;
+                // 法术伤害：乘算公式 [基础攻击 * (1 - (抗性 - 法术穿透)/100)]
+                // 法术穿透减少目标的有效法术抗性
+                const effectiveMR = Math.max(0, magicResist - magicPen);
+                const resistReduction = Math.min(100, effectiveMR) / 100;
                 finalDamage = Math.max(minimumDamage, baseDamage * (1 - resistReduction));
                 break;
             case DamageType.TRUE:

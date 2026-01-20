@@ -70,6 +70,12 @@ import guardTowerImg from '../assets/towers/GuardTower/GuardTower.png';
 // @ts-ignore
 import guardTowerSpriteImg from '../assets/towers/GuardTower/GuardTower_sprite.png';
 
+// 雨迫击炮资源
+// @ts-ignore
+import rainMortarTowerImg from '../assets/towers/RainMortarTower/RainMortarTower.png';
+// @ts-ignore
+import rainMortarTowerSpriteImg from '../assets/towers/RainMortarTower/RainMortarTower_sprite.png';
+
 // 环境/地形贴图 - 自然风格
 // @ts-ignore
 import grassImg from '../assets/env/Grass1.png';
@@ -160,6 +166,10 @@ export class AssetManager {
             Assets.add({ alias: 'tower_guard', src: guardTowerImg });
             Assets.add({ alias: 'guard_sprite', src: guardTowerSpriteImg });
 
+            // 雨迫击炮资源
+            Assets.add({ alias: 'tower_rain_mortar', src: rainMortarTowerImg });
+            Assets.add({ alias: 'rain_mortar_sprite', src: rainMortarTowerSpriteImg });
+
             // 地形贴图 - 自然风格
             Assets.add({ alias: 'env_grass', src: grassImg });
             Assets.add({ alias: 'env_flower', src: flowerImg });
@@ -178,6 +188,7 @@ export class AssetManager {
                 'tower_antiaircraft', 'antiaircraft_sprite',
                 'tower_gatling', 'gatling_sprite',
                 'tower_guard', 'guard_sprite',
+                'tower_rain_mortar', 'rain_mortar_sprite',
                 'env_grass', 'env_flower', 'env_platform_nature',
                 'env_ground_tech', 'env_platform_tech', 'env_obstacle_tech',
             ]);
@@ -210,6 +221,10 @@ export class AssetManager {
             // 近卫塔纹理
             this.textures.set('tower_guard', textures.tower_guard);
             this.textures.set('guard_sprite', textures.guard_sprite);
+
+            // 雨迫击炮纹理
+            this.textures.set('tower_rain_mortar', textures.tower_rain_mortar);
+            this.textures.set('rain_mortar_sprite', textures.rain_mortar_sprite);
 
             // 地形纹理 - 自然风格
             this.textures.set('env_grass', textures.env_grass);
