@@ -139,30 +139,30 @@ export class WaveSystem {
                 waveNumber: 1,
                 prepareTime: 3000,
                 enemies: [
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 300, 0, 0),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 300, 0, 1),
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 300, 0, 2),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 300, 0, 3),
-                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 50, 400, 5000, -1), // 随机红门加入后续增援
-                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 50, 400, 5000, -1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 600, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 600, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 600, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 600, 0, 3),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 50, 800, 5000, -1), // 随机红门加入后续增援
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 50, 800, 5000, -1),
                 ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第2波：集群突击（400敌人，高频穿插）
+            // 第2波：集群突击（400敌人，中等节奏）
             // ============================================================
             {
                 waveNumber: 2,
                 prepareTime: 5000,
                 enemies: [
                     // 左右侧强攻
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 150, 0, 0),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 200, 0, 1),
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 150, 0, 2),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 200, 0, 3),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 400, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 500, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 400, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 500, 0, 3),
                     // 精英混合增援
                     ...this.mixedSpawn([
-                        { type: EnemyType.CAPOO_AK47, count: 50, interval: 200 },
-                        { type: EnemyType.CAPOO_BUBBLETEA, count: 50, interval: 200 },
+                        { type: EnemyType.CAPOO_AK47, count: 50, interval: 400 },
+                        { type: EnemyType.CAPOO_BUBBLETEA, count: 50, interval: 400 },
                     ], 8000),
                 ].sort((a, b) => a.delay - b.delay),
             },
@@ -174,44 +174,44 @@ export class WaveSystem {
                 prepareTime: 5000,
                 enemies: [
                     // 四门僵尸海（作为肉盾）
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 0),
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 1),
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 2),
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 3),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 300, 0, 0),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 300, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 300, 0, 2),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 300, 0, 3),
                     // 中后期大量 AK47 和 奶茶
-                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 100, 150, 3000, 0),
-                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 100, 150, 3000, 1),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 100, 400, 5000, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 100, 400, 5000, 1),
                 ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第4波：饱和打击（1000敌人，极高频生成）
+            // 第4波：密集打击（1000敌人，平滑节奏）
             // ============================================================
             {
                 waveNumber: 4,
                 prepareTime: 5000,
                 enemies: [
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 300, 50, 0, 2),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 200, 80, 0, 3),
-                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 250, 100, 0, 0),
-                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 250, 100, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 300, 250, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 200, 300, 0, 3),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 250, 350, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 250, 350, 0, 1),
                 ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第5波：终极混沌（2000敌人，疯狂测试）
+            // 第5波：终极决战（2000敌人，史诗感）
             // ============================================================
             {
                 waveNumber: 5,
                 prepareTime: 10000,
                 enemies: [
-                    // 全红门爆发式生成
-                    ...this.batchSpawn(EnemyType.ZOMBIE, 500, 30, 0, 0),
-                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 500, 30, 0, 1),
-                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 500, 40, 0, 2),
-                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 500, 40, 0, 3),
-                    // 最后 10 秒 混合冲击
+                    // 全红门爆发式生成，但间隔增加到 150ms-200ms
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 500, 150, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 500, 150, 0, 1),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 500, 200, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 500, 200, 0, 3),
+                    // 最后阶段 混合冲击
                     ...this.mixedSpawn([
-                        { type: EnemyType.CAPOO_SWORDSMAN, count: 100, interval: 20 },
-                        { type: EnemyType.CAPOO_AK47, count: 100, interval: 20 },
+                        { type: EnemyType.CAPOO_SWORDSMAN, count: 100, interval: 100 },
+                        { type: EnemyType.CAPOO_AK47, count: 100, interval: 100 },
                     ], 15000),
                 ].sort((a, b) => a.delay - b.delay),
             },

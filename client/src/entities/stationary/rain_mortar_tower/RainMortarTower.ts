@@ -356,7 +356,10 @@ export class RainMortarTower extends Tower {
         // 触发开火回调
         if (this.onFire) {
             this.onFire({
-                startPos: { ...this.getPosition() },
+                startPos: {
+                    x: this.getPosition().x,
+                    y: this.getPosition().y - 20
+                },
                 targetPos: { ...target.position },
                 baseDamage: this.stats.attack,
                 layers: MORTAR_EXPLOSION_LAYERS,
