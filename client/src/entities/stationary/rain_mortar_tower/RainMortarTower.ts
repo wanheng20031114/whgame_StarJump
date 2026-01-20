@@ -12,8 +12,8 @@
  * 
  * 动画状态：
  * - Idle（待机）：帧 0，范围内无敌人
- * - Preheating（预热）：帧 1-13，检测到敌人后预热升温
- * - Firing（开火）：帧 14-15，连续发射炮弹
+ * - Preheating（预热）：帧 1-12，检测到敌人后预热升温
+ * - Firing（开火）：帧 13-15，连续发射炮弹
  * - Cooldown（冷却）：等待下次攻击
  */
 
@@ -21,6 +21,7 @@ import { Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { Position, TowerStats, TowerType } from '../../../types';
 import { Tower } from '../Tower';
 import { AssetManager } from '../../../core/AssetManager';
+import { DamageLayer } from '../antiaircraft_tower/AntiaircraftTower';
 
 /**
  * 雨迫击炮状态枚举
@@ -40,15 +41,24 @@ export interface RainMortarFireData {
     startPos: Position;
     /** 目标位置（落点） */
     targetPos: Position;
-    /** 单发伤害 */
-    damage: number;
-    /** 爆炸半径（格数） */
-    explosionRadius: number;
+    /** 基础伤害 */
+    baseDamage: number;
+    /** 分层伤害配置 */
+    layers: DamageLayer[];
     /** 物理穿透 */
     physicalPen: number;
     /** 炮弹飞行时间（秒） */
     flightTime: number;
 }
+
+/**
+ * 雨迫击炮默认分层伤害配置（1.8格半径 = 115像素）
+ */
+const MORTAR_EXPLOSION_LAYERS: DamageLayer[] = [
+    { radius: 38, damagePercent: 1.0 },   // 中心0.6格：100%
+    { radius: 77, damagePercent: 0.6 },   // 中层1.2格：60%
+    { radius: 115, damagePercent: 0.2 },  // 外层1.8格：20%
+];
 
 /**
  * 雨迫击炮攻击范围模板（9x9 环形，中心 3x3 盲区）
@@ -74,7 +84,7 @@ const RAIN_MORTAR_STATS: TowerStats = {
     defense: 5,
     magicResist: 10,
     attack: 50,              // 单发核心伤害
-    attackSpeed: 0.2,        // 5秒攻击周期
+    attackSpeed: 0.25,        // 4秒攻击周期
     physicalPen: 15,         // 物理穿透
     magicPen: 0,
     rangePattern: RAIN_MORTAR_RANGE_PATTERN,
@@ -113,9 +123,6 @@ export class RainMortarTower extends Tower {
 
     /** 炮弹飞行时间（秒） */
     private readonly projectileFlightTime: number = 0.3;
-
-    /** 爆炸半径（格数） */
-    private readonly explosionRadius: number = 1.8;
 
     /** 精灵图 */
     private sprite: Sprite | null = null;
@@ -288,6 +295,14 @@ export class RainMortarTower extends Tower {
                 break;
 
             case RainMortarState.FIRING:
+                // 如果敌人全死了，提前进入冷却
+                if (!hasEnemy) {
+                    this.mortarState = RainMortarState.COOLDOWN;
+                    this.frameTimer = 0;
+                    console.log('[雨迫击炮] 敌人已清空，提前进入冷却');
+                    break;
+                }
+
                 this.burstTimer += deltaTime;
 
                 if (this.firedCount < this.burstCount && this.burstTimer >= this.burstInterval) {
@@ -343,8 +358,8 @@ export class RainMortarTower extends Tower {
             this.onFire({
                 startPos: { ...this.getPosition() },
                 targetPos: { ...target.position },
-                damage: this.stats.attack,
-                explosionRadius: this.explosionRadius,
+                baseDamage: this.stats.attack,
+                layers: MORTAR_EXPLOSION_LAYERS,
                 physicalPen: this.stats.physicalPen ?? 0,
                 flightTime: this.projectileFlightTime,
             });

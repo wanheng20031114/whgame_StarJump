@@ -11,7 +11,8 @@
  */
 
 import { Container, Graphics } from 'pixi.js';
-import { Position } from '../types';
+import { Position } from '../../../types';
+import { DamageLayer } from '../antiaircraft_tower/AntiaircraftTower';
 
 /**
  * 迫击炮弹类
@@ -47,11 +48,11 @@ export class MortarProjectile {
     /** 抛物线最高点（像素） */
     private readonly maxHeight: number = 100;
 
-    /** 伤害值 */
-    private damage: number;
+    /** 基础伤害 */
+    private baseDamage: number;
 
-    /** 爆炸半径（格数） */
-    private explosionRadius: number;
+    /** 分层伤害配置 */
+    private layers: DamageLayer[];
 
     /** 物理穿透 */
     private physicalPen: number;
@@ -62,15 +63,15 @@ export class MortarProjectile {
     constructor(
         startPos: Position,
         targetPos: Position,
-        damage: number,
-        explosionRadius: number,
+        baseDamage: number,
+        layers: DamageLayer[],
         physicalPen: number,
         flightTime: number = 0.3
     ) {
         this.startPos = { ...startPos };
         this.targetPos = { ...targetPos };
-        this.damage = damage;
-        this.explosionRadius = explosionRadius;
+        this.baseDamage = baseDamage;
+        this.layers = layers;
         this.physicalPen = physicalPen;
         this.flightTime = flightTime;
 
@@ -155,17 +156,17 @@ export class MortarProjectile {
     }
 
     /**
-     * 获取伤害值
+     * 获取基础伤害
      */
-    public getDamage(): number {
-        return this.damage;
+    public getBaseDamage(): number {
+        return this.baseDamage;
     }
 
     /**
-     * 获取爆炸半径（格数）
+     * 获取分层伤害配置
      */
-    public getExplosionRadius(): number {
-        return this.explosionRadius;
+    public getLayers(): DamageLayer[] {
+        return this.layers;
     }
 
     /**

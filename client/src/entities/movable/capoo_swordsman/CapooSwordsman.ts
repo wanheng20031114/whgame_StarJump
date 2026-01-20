@@ -21,7 +21,7 @@ const CAPOO_STATS: EnemyStats = {
     health: 250,
     maxHealth: 250,
     attack: 0, // 剑士没有远程攻击，暂为0
-    defense: 10,
+    defense: 20,
     magicResist: 10,
     moveSpeed: 0.8, // 每秒移动0.8格，比僵尸快
 };

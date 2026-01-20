@@ -42,7 +42,7 @@ import { GatlingTower } from '../entities/stationary/gatling_tower/GatlingTower'
 import { GatlingBullet } from '../entities/stationary/gatling_tower/GatlingBullet';
 import { GuardTower } from '../entities/stationary/guard_tower/GuardTower';
 import { RainMortarTower, RainMortarFireData } from '../entities/stationary/rain_mortar_tower/RainMortarTower';
-import { MortarProjectile } from '../entities/MortarProjectile';
+import { MortarProjectile } from '../entities/stationary/rain_mortar_tower/MortarProjectile';
 import { AuraGlowEffect } from '../entities/effects/AuraGlowEffect';
 
 /**
@@ -1082,8 +1082,8 @@ export class Game {
         const projectile = new MortarProjectile(
             data.startPos,
             data.targetPos,
-            data.damage,
-            data.explosionRadius,
+            data.baseDamage,
+            data.layers,
             data.physicalPen,
             data.flightTime
         );
@@ -1118,21 +1118,22 @@ export class Game {
     }
 
     /**
-     * 处理迫击炮爆炸
+     * 处理迫击炮爆炸（复用防空塔分层伤害逻辑）
      */
     private handleMortarExplosion(projectile: MortarProjectile): void {
         const targetPos = projectile.getTargetPosition();
-        const explosionRadiusPx = projectile.getExplosionRadius() * 64; // 格数转像素
+        const layers = projectile.getLayers();
+        const maxRadius = layers.length > 0 ? layers[layers.length - 1].radius : 96;
 
         // 创建爆炸视觉效果
-        const explosion = new ExplosionEffect(targetPos, explosionRadiusPx);
+        const explosion = new ExplosionEffect(targetPos, maxRadius);
         this.explosionEffects.push(explosion);
         this.projectileLayer.addChild(explosion.getContainer());
 
         // 播放爆炸音效（使用防空塔音效）
         AssetManager.getInstance().playAntiaircraftTowerFireSound();
 
-        // 计算AOE伤害
+        // 计算 AOE 伤害（与防空塔逻辑一致）
         let hitCount = 0;
         for (const enemy of this.enemies) {
             if (!enemy.isAlive()) continue;
@@ -1142,12 +1143,17 @@ export class Game {
             const dy = enemyPos.y - targetPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            // 在爆炸范围内造成伤害
-            if (distance <= explosionRadiusPx) {
-                // 距离越近伤害越高（核心100%，边缘20%）
-                const damagePercent = 1 - (distance / explosionRadiusPx) * 0.8;
-                const rawDamage = projectile.getDamage() * damagePercent;
+            // 检查敌人在哪个伤害层（复用防空塔逻辑）
+            let damagePercent = 0;
+            for (const layer of layers) {
+                if (distance <= layer.radius) {
+                    damagePercent = layer.damagePercent;
+                    break; // 取最内层的伤害
+                }
+            }
 
+            if (damagePercent > 0) {
+                const rawDamage = projectile.getBaseDamage() * damagePercent;
                 const finalDamage = this.combatSystem.calculateDamage(
                     rawDamage,
                     DamageType.PHYSICAL,
