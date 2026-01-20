@@ -5,7 +5,7 @@
  * 管理敌人波次的生成和调度
  */
 
-import { EnemyType, Position } from '../types';
+import { EnemyType } from '../types';
 
 /**
  * 单个敌人生成配置
@@ -72,106 +72,157 @@ export class WaveSystem {
         // 初始化默认波次配置
         this.waves = this.createDefaultWaves();
     }
-    //临时函数。测试用
-    private test1(n: number) {
-        let su = [];
-        for (let i = 0; i < n; i++) {
-            su.push(
-                { type: EnemyType.CAPOO_AK47, delay: i * 400, gateIndex: 0 }
-            );
-        }
-        return su;
-    }
+
+    // ============================================================
+    // 敌人批量生成工具类
+    // ============================================================
+
     /**
-     * 创建默认波次配置
-     * 当前配置为单人模式 5 波挑战
+     * 批量生成同类型敌人
+     * @param type 敌人类型
+     * @param count 数量
+     * @param interval 生成间隔（毫秒）
+     * @param startDelay 起始延迟（毫秒）
+     * @param gateIndex 红门索引，-1表示随机
      */
-    private createDefaultWaves(): WaveConfig[] {
+    private batchSpawn(
+        type: EnemyType,
+        count: number,
+        interval: number,
+        startDelay: number = 0,
+        gateIndex: number = -1
+    ): EnemySpawnConfig[] {
+        return Array(count).fill(0).map((_, i) => ({
+            type,
+            delay: startDelay + i * interval,
+            gateIndex,
+        }));
+    }
+
+    /**
+     * 混合批量生成多种敌人
+     * @param configs 配置数组 [{ type, count, interval, gateIndex? }]
+     * @param startDelay 起始延迟
+     */
+    private mixedSpawn(
+        configs: Array<{
+            type: EnemyType;
+            count: number;
+            interval: number;
+            gateIndex?: number;
+        }>,
+        startDelay: number = 0
+    ): EnemySpawnConfig[] {
+        const result: EnemySpawnConfig[] = [];
+        for (const cfg of configs) {
+            result.push(...this.batchSpawn(
+                cfg.type,
+                cfg.count,
+                cfg.interval,
+                startDelay,
+                cfg.gateIndex ?? -1
+            ));
+        }
+        // 按延迟排序
+        return result.sort((a, b) => a.delay - b.delay);
+    }
+
+    /**
+     * 创建高密度压力测试波次（5波超高强度，支持4红门）
+     */
+    private createStressTestWaves(): WaveConfig[] {
         return [
             // ============================================================
-            // 第 1 波：入门（5 僵尸 + 2 Capoo）
-            // 总数：7 | 目标：熟悉基础操作
+            // 第1波：四方齐动（200敌人，4红门均匀出兵）
             // ============================================================
             {
                 waveNumber: 1,
                 prepareTime: 3000,
-                enemies: this.test1(50),
-                // enemies: [
-                //     { type: EnemyType.CAPOO_AK47, delay: 0, gateIndex: 0 },
-                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
-                //     { type: EnemyType.CAPOO_AK47, delay: 2000, gateIndex: 0 },
-                //     
-                // ],
+                enemies: [
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 300, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 300, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 25, 300, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 25, 300, 0, 3),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 50, 400, 5000, -1), // 随机红门加入后续增援
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 50, 400, 5000, -1),
+                ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第 2 波：压制（8 僵尸 + 3 Capoo）
-            // 总数：11 | 目标：考验火力密度
+            // 第2波：集群突击（400敌人，高频穿插）
             // ============================================================
             {
                 waveNumber: 2,
                 prepareTime: 5000,
                 enemies: [
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 0, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1500, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 3000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 1000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 2000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 4000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 6000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_BUBBLETEA, delay: 8000, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 4500, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 6000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 7500, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 9000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 10500, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 12000, gateIndex: 0 },
-                    { type: EnemyType.ZOMBIE, delay: 13500, gateIndex: 0 },
-                    { type: EnemyType.CAPOO_SWORDSMAN, delay: 15000, gateIndex: 0 },
-                ],
+                    // 左右侧强攻
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 150, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 200, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 150, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 50, 200, 0, 3),
+                    // 精英混合增援
+                    ...this.mixedSpawn([
+                        { type: EnemyType.CAPOO_AK47, count: 50, interval: 200 },
+                        { type: EnemyType.CAPOO_BUBBLETEA, count: 50, interval: 200 },
+                    ], 8000),
+                ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第 3 波：急袭（10 僵尸 + 6 Capoo）
-            // 总数：16 | 目标：应对快速单位冲阵
+            // 第3波：炮点掩护（600敌人，重火力混合）
             // ============================================================
             {
                 waveNumber: 3,
                 prepareTime: 5000,
                 enemies: [
-                    // 先来一拨僵尸铺路
-                    ...Array(5).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 1000, gateIndex: 0 })),
-                    // 突然加速：Capoo 小队冲锋
-                    ...Array(6).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: 5000 + i * 800, gateIndex: 0 })),
-                    // 后续僵尸补足
-                    ...Array(5).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: 10000 + i * 1000, gateIndex: 0 })),
-                ],
+                    // 四门僵尸海（作为肉盾）
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 0),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 1),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 2),
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 100, 100, 0, 3),
+                    // 中后期大量 AK47 和 奶茶
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 100, 150, 3000, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 100, 150, 3000, 1),
+                ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第 4 波：混合爆发（15 僵尸 + 8 Capoo）
-            // 总数：23 | 目标：综合防御考验
+            // 第4波：饱和打击（1000敌人，极高频生成）
             // ============================================================
             {
                 waveNumber: 4,
                 prepareTime: 5000,
                 enemies: [
-                    // 僵尸与 Capoo 混合生成，制造持续压力
-                    ...Array(15).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 800, gateIndex: 0 })),
-                    ...Array(8).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: i * 1500, gateIndex: 0 })),
-                ].sort((a, b) => a.delay - b.delay), // 按延迟排序确保逻辑正确
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 300, 50, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 200, 80, 0, 3),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 250, 100, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 250, 100, 0, 1),
+                ].sort((a, b) => a.delay - b.delay),
             },
             // ============================================================
-            // 第 5 波：最终波次（20 僵尸 + 12 Capoo）
-            // 总数：32 | 目标：终极防线测试
+            // 第5波：终极混沌（2000敌人，疯狂测试）
             // ============================================================
             {
                 waveNumber: 5,
-                prepareTime: 8000,
+                prepareTime: 10000,
                 enemies: [
-                    // 高频率生成敌军
-                    ...Array(20).fill(0).map((_, i) => ({ type: EnemyType.ZOMBIE, delay: i * 600, gateIndex: 0 })),
-                    ...Array(12).fill(0).map((_, i) => ({ type: EnemyType.CAPOO_SWORDSMAN, delay: 2000 + i * 1000, gateIndex: 0 })),
+                    // 全红门爆发式生成
+                    ...this.batchSpawn(EnemyType.ZOMBIE, 500, 30, 0, 0),
+                    ...this.batchSpawn(EnemyType.CAPOO_SWORDSMAN, 500, 30, 0, 1),
+                    ...this.batchSpawn(EnemyType.CAPOO_AK47, 500, 40, 0, 2),
+                    ...this.batchSpawn(EnemyType.CAPOO_BUBBLETEA, 500, 40, 0, 3),
+                    // 最后 10 秒 混合冲击
+                    ...this.mixedSpawn([
+                        { type: EnemyType.CAPOO_SWORDSMAN, count: 100, interval: 20 },
+                        { type: EnemyType.CAPOO_AK47, count: 100, interval: 20 },
+                    ], 15000),
                 ].sort((a, b) => a.delay - b.delay),
             },
         ];
+    }
+
+    /**
+     * 创建默认波次配置
+     */
+    private createDefaultWaves(): WaveConfig[] {
+        return this.createStressTestWaves();
     }
 
     /**

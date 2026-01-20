@@ -43,8 +43,8 @@ export interface BubblePearlData {
  * 珍珠奶茶 Capoo 默认属性
  */
 const BUBBLETEA_STATS: EnemyStats = {
-    health: 200,
-    maxHealth: 200,
+    health: 1600,
+    maxHealth: 1600,
     attack: 15,  // 每颗珍珠的攻击力
     defense: 5,
     magicResist: 5,

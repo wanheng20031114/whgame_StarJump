@@ -45,8 +45,8 @@ export interface AK47BulletData {
  * AK47 Capoo 默认属性
  */
 const AK47_STATS: EnemyStats = {
-    health: 100,
-    maxHealth: 100,
+    health: 800,
+    maxHealth: 800,
     attack: 25,  // 每发子弹伤害
     defense: 0,
     magicResist: 0,

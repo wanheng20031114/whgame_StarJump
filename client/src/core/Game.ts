@@ -122,13 +122,13 @@ export class Game {
     private gameState: GameState = GameState.IDLE;
 
     /** 核心生命值 */
-    private coreHealth: number = 10;
+    private coreHealth: number = 100;
 
     /** 核心最大生命值 */
-    private maxCoreHealth: number = 10;
+    private maxCoreHealth: number = 100;
 
     /** 金币 */
-    private gold: number = 10000;
+    private gold: number = 500000;
 
     /** 实体ID计数器 */
     private entityIdCounter: number = 0;
@@ -664,8 +664,8 @@ export class Game {
      */
     private setupWaveCallbacks(): void {
         // 敌人生成回调
-        this.waveSystem.setOnSpawnEnemy((type: EnemyType, _gateIndex: number) => {
-            this.spawnEnemy(type);
+        this.waveSystem.setOnSpawnEnemy((type: EnemyType, gateIndex: number) => {
+            this.spawnEnemy(type, gateIndex);
         });
 
         // 波次开始回调
@@ -696,16 +696,19 @@ export class Game {
 
     /**
      * 生成敌人
+     * @param type 敌人类型
+     * @param gateIndex 红门索引（0-based），超出范围时使用第一个红门
      */
-    private spawnEnemy(type: EnemyType): void {
+    private spawnEnemy(type: EnemyType, gateIndex: number = 0): void {
         const redGates = this.gameMap.getRedGates();
         if (redGates.length === 0) {
             console.error('[游戏] 没有红门，无法生成敌人');
             return;
         }
 
-        // 从第一个红门生成
-        const gate = redGates[0];
+        // 选择红门：超出范围时默认使用第一个红门
+        const safeIndex = (gateIndex >= 0 && gateIndex < redGates.length) ? gateIndex : 0;
+        const gate = redGates[safeIndex];
         const startPos = this.gameMap.tileToPixel(gate.x, gate.y);
 
         // 创建敌人

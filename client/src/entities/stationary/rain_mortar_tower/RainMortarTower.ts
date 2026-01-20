@@ -79,8 +79,8 @@ const RAIN_MORTAR_RANGE_PATTERN = [
  * 雨迫击炮默认属性
  */
 const RAIN_MORTAR_STATS: TowerStats = {
-    health: 150,
-    maxHealth: 150,
+    health: 1000,
+    maxHealth: 1000,
     defense: 5,
     magicResist: 10,
     attack: 50,              // 单发核心伤害

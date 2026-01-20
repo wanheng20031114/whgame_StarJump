@@ -53,8 +53,8 @@ const GATLING_RANGE_PATTERN = [
  * 加特林塔默认属性
  */
 const GATLING_STATS: TowerStats = {
-    health: 150,
-    maxHealth: 150,
+    health: 1000,
+    maxHealth: 1000,
     defense: 5,
     magicResist: 5,
     attack: 14,            // 每发子弹伤害
