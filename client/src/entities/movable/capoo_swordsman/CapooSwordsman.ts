@@ -18,12 +18,12 @@ import { AssetManager } from '../../../core/AssetManager';
  * Capoo 剑士默认属性
  */
 const CAPOO_STATS: EnemyStats = {
-    health: 2000,
-    maxHealth: 2000,
+    health: 1500,
+    maxHealth: 1500,
     attack: 0, // 剑士没有远程攻击，暂为0
     defense: 20,
     magicResist: 10,
-    moveSpeed: 0.8, // 每秒移动0.8格，比僵尸快
+    moveSpeed: 0.6, // 每秒移动0.8格，比僵尸快
 };
 
 /**
