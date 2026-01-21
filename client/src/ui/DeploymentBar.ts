@@ -197,7 +197,7 @@ export class DeploymentBar {
                 type: TowerType.RAIN_MORTAR,
                 name: '雨迫击炮',
                 cost: 150,
-                color: 0x5d4e37,
+                color: 0x346edb,
                 description: '连发4炮弹，中范围AOE爆炸',
             },
         ];

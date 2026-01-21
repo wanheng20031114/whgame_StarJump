@@ -149,11 +149,11 @@ export class TowerInfoPanel {
      */
     private createStatsTexts(): void {
         const statsKeys = [
-            { key: 'health', label: '❤ 生命' },
-            { key: 'attack', label: '⚔ 攻击' },
-            { key: 'defense', label: '🛡 防御' },
-            { key: 'magicResist', label: '✨ 法抗' },
-            { key: 'attackSpeed', label: '⚡ 攻速' },
+            { key: 'health', label: '❤ 生命值' },
+            { key: 'attack', label: '⚔ 攻击值' },
+            { key: 'defense', label: '🛡 防御值' },
+            { key: 'magicResist', label: '✨ 法抗值' },
+            { key: 'attackSpeed', label: '⚡ 攻速值' },
         ];
 
         const textStyle = new TextStyle({
