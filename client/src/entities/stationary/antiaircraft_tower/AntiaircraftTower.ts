@@ -92,7 +92,7 @@ const ANTIAIRCRAFT_STATS: TowerStats = {
     maxHealth: 1000,
     defense: 10,
     magicResist: 15,
-    attack: 50,
+    attack: 120,
     attackSpeed: 1 / 3,  // 3 秒攻击一次
     rangePattern: ANTIAIRCRAFT_RANGE_PATTERN,
 };

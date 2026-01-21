@@ -17,13 +17,13 @@ import { v4 as uuidv4 } from 'uuid';
 // 服务器配置
 // ============================================================
 
-const PORT = 3000;
+const PORT = 9001;
 const app = express();
 const httpServer = createServer(app);
 
 // 配置 CORS
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
+    origin: ['http://localhost:8001', 'http://127.0.0.1:8001', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
     credentials: true,
 }));
 
@@ -36,7 +36,7 @@ app.use(express.json());
 
 const io = new Server(httpServer, {
     cors: {
-        origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
+        origin: ['http://localhost:8001', 'http://127.0.0.1:8001', 'http://www.wszzwh.site', 'https://www.wszzwh.site', 'http://wszzwh.site', 'https://wszzwh.site'],
         methods: ['GET', 'POST'],
         credentials: true,
     },

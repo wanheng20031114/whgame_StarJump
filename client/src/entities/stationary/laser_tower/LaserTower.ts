@@ -60,7 +60,7 @@ const LASER_STATS: TowerStats = {
     maxHealth: 1200,
     defense: 10,
     magicResist: 20,
-    attack: 80,
+    attack: 800,
     attackSpeed: 0.5,
     rangePattern: LASER_RANGE_PATTERN,
 };
