@@ -69,6 +69,8 @@ export class GatlingBullet {
 
         // 创建显示容器
         this.container = new Container();
+        // 允许点击事件穿透子弹，避免阻挡炮台选中
+        this.container.eventMode = 'none';
         this.container.x = this.position.x;
         this.container.y = this.position.y;
 

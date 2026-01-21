@@ -65,6 +65,8 @@ export class BubblePearl {
         this.ownerId = ownerId;
 
         this.container = new Container();
+        // 允许点击事件穿透珍珠，避免阻挡炮台选中
+        this.container.eventMode = 'none';
         this.graphics = new Graphics();
         this.container.addChild(this.graphics);
 

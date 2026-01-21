@@ -77,6 +77,8 @@ export class MortarProjectile {
 
         // 创建容器
         this.container = new Container();
+        // 允许点击事件穿透炮弹，避免阻挡单位选中
+        this.container.eventMode = 'none';
         this.container.x = startPos.x;
         this.container.y = startPos.y;
 

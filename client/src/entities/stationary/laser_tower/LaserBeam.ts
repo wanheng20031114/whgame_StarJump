@@ -51,6 +51,8 @@ export class LaserBeam {
         this.endPos = { ...endPos };
 
         this.container = new Container();
+        // 允许点击事件穿透激光，避免阻挡单位选中
+        this.container.eventMode = 'none';
         this.graphics = new Graphics();
         this.container.addChild(this.graphics);
 

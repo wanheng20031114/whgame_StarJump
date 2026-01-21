@@ -42,6 +42,8 @@ export class DamagePopup {
      */
     constructor(damage: number, type: DamageType, position: Position) {
         this.container = new Container();
+        // 允许点击事件穿透伤害数字，避免阻挡单位选中
+        this.container.eventMode = 'none';
         this.startPos = { ...position };
 
         // 随机 X 轴微调，防止重叠

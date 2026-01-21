@@ -83,6 +83,8 @@ export class FlameParticle {
 
         // 创建显示容器
         this.container = new Container();
+        // 允许点击事件穿透火焰粒子，避免阻挡单位选中
+        this.container.eventMode = 'none';
         this.container.x = this.position.x;
         this.container.y = this.position.y;
 
